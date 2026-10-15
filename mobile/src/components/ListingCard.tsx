@@ -1,0 +1,254 @@
+import React from "react";
+import { StyleSheet, View, TouchableOpacity } from "react-native";
+import { Text, Surface, Chip } from "react-native-paper";
+import { MapPin, User as UserIcon, CheckCircle2, Star } from "lucide-react-native";
+import { Listing } from "../types";
+
+interface ListingCardProps {
+  listing: Listing;
+  onPress: () => void;
+}
+
+export const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress }) => {
+  const renderCategoryInfo = () => {
+    switch (listing.type) {
+      case "room":
+        return (
+          <View style={styles.priceRow}>
+            <Text variant="titleMedium" style={styles.priceText}>
+              ₹{listing.roomDetails?.rent?.toLocaleString("en-IN") || 0}
+              <Text variant="bodySmall" style={styles.periodText}>
+                /{listing.roomDetails?.period || "mo"}
+              </Text>
+            </Text>
+            {listing.roomDetails?.verified && (
+              <View style={styles.verifiedBadge}>
+                <CheckCircle2 size={13} color="#059669" />
+                <Text variant="labelSmall" style={styles.verifiedText}>
+                  Verified
+                </Text>
+              </View>
+            )}
+          </View>
+        );
+
+      case "vehicle":
+        return (
+          <View style={styles.priceRow}>
+            <Text variant="titleMedium" style={styles.priceText}>
+              ₹{listing.vehicleDetails?.rentalPrice || 0}
+              <Text variant="bodySmall" style={styles.periodText}>
+                /{listing.vehicleDetails?.pricingPeriod || "hr"}
+              </Text>
+            </Text>
+            <Chip
+              compact
+              style={{
+                backgroundColor: listing.vehicleDetails?.available ? "#ECFDF5" : "#FEF2F2",
+              }}
+              textStyle={{
+                color: listing.vehicleDetails?.available ? "#059669" : "#DC2626",
+                fontSize: 11,
+                fontWeight: "600",
+              }}
+            >
+              {listing.vehicleDetails?.available ? "Available" : "Booked"}
+            </Chip>
+          </View>
+        );
+
+      case "lost_found":
+        const isLost = listing.lostFoundDetails?.kind === "lost";
+        return (
+          <View style={styles.priceRow}>
+            <View
+              style={[
+                styles.kindBadge,
+                { backgroundColor: isLost ? "#FEE2E2" : "#E0F2FE" },
+              ]}
+            >
+              <Text
+                variant="labelMedium"
+                style={{
+                  color: isLost ? "#B91C1C" : "#0369A1",
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                }}
+              >
+                {isLost ? "Lost Item" : "Found Item"}
+              </Text>
+            </View>
+          </View>
+        );
+
+      case "service":
+        return (
+          <View style={styles.priceRow}>
+            <Text variant="titleMedium" style={styles.priceText}>
+              {listing.serviceDetails?.pricingInfo || "Call for quote"}
+            </Text>
+            <View style={styles.ratingBadge}>
+              <Star size={13} color="#EAB308" fill="#EAB308" />
+              <Text variant="labelSmall" style={styles.ratingText}>
+                {listing.serviceDetails?.rating || 5.0} (
+                {listing.serviceDetails?.jobsCount || 0} jobs)
+              </Text>
+            </View>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Surface style={styles.card} elevation={1}>
+      <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.inner}>
+        <View style={styles.header}>
+          <Text variant="titleMedium" style={styles.title} numberOfLines={2}>
+            {listing.title}
+          </Text>
+          {renderCategoryInfo()}
+        </View>
+
+        {listing.description ? (
+          <Text variant="bodySmall" style={styles.desc} numberOfLines={2}>
+            {listing.description}
+          </Text>
+        ) : null}
+
+        <View style={styles.footer}>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color="#64748B" />
+            <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
+              {listing.locality}
+            </Text>
+          </View>
+
+          <View style={styles.metaItem}>
+            <UserIcon size={13} color="#64748B" />
+            <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
+              {listing.ownerName}
+            </Text>
+          </View>
+        </View>
+
+        {listing.type === "room" && listing.roomDetails?.amenities?.length ? (
+          <View style={styles.chipsRow}>
+            {listing.roomDetails.amenities.slice(0, 3).map((amenity, i) => (
+              <View key={i} style={styles.amenityChip}>
+                <Text variant="labelSmall" style={styles.amenityText}>
+                  {amenity}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    </Surface>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 14,
+    marginVertical: 6,
+    marginHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  inner: {
+    padding: 16,
+  },
+  header: {
+    marginBottom: 8,
+  },
+  title: {
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 6,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  priceText: {
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+  periodText: {
+    fontWeight: "400",
+    color: "#64748B",
+  },
+  desc: {
+    color: "#475569",
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    paddingTop: 10,
+    marginTop: 4,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: "48%",
+  },
+  metaText: {
+    color: "#64748B",
+    marginLeft: 4,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  verifiedText: {
+    color: "#059669",
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  kindBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEFCE8",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ratingText: {
+    color: "#854D0E",
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  chipsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  amenityChip: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  amenityText: {
+    color: "#475569",
+    fontSize: 11,
+  },
+});
