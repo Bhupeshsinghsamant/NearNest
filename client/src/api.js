@@ -7,9 +7,19 @@ function authHeaders() {
   }
 }
 
-// Real GET: Reads directly from MongoDB Atlas backend API
-export async function get(resource) {
-  const res = await fetch(`/api/${resource}`, { headers: authHeaders() });
+// Real GET: Reads directly from MongoDB Atlas backend API with optional geospatial query params
+export async function get(resource, params = null) {
+  let url = `/api/${resource}`;
+  if (params && typeof params === "object") {
+    const cleanParams = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v != null && v !== "") cleanParams[k] = v;
+    }
+    const qs = new URLSearchParams(cleanParams).toString();
+    if (qs) url += `?${qs}`;
+  }
+
+  const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Could not fetch ${resource} from server.`);
@@ -17,6 +27,27 @@ export async function get(resource) {
   const data = await res.json();
   // If response is wrapped in { success, data }
   return Array.isArray(data) ? data : data.data || [];
+}
+
+// Real Media Upload: Multipart form-data uploaded to persistent backend storage
+export async function uploadMedia(files) {
+  const fd = new FormData();
+  for (const f of files) {
+    fd.append("files", f);
+  }
+
+  const res = await fetch("/api/upload/media", {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: fd,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Media upload failed. Photos: max 10MB, Videos: max 50MB.");
+  }
+  const data = await res.json();
+  return data.files || [];
 }
 
 // Real POST: Writes directly to MongoDB Atlas backend API

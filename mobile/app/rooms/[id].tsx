@@ -1,10 +1,21 @@
 import React, { useState } from "react";
-import { StyleSheet, View, ScrollView, Alert } from "react-native";
-import { Text, Surface, Button, Chip, Divider, Snackbar } from "react-native-paper";
+import { StyleSheet, View, ScrollView, Alert, Image, TouchableOpacity } from "react-native";
+import { Text, Surface, Button, Chip, Snackbar } from "react-native-paper";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, User, CheckCircle2, Trash2, Edit3, MessageCircle } from "lucide-react-native";
+import {
+  MapPin,
+  User,
+  CheckCircle2,
+  Trash2,
+  Edit3,
+  MessageCircle,
+  Camera,
+  Video as VideoIcon,
+  Navigation,
+} from "lucide-react-native";
 import { fetchListingById, deleteListing } from "../../src/api/listings";
+import { getMediaUrl } from "../../src/api/client";
 import { LoadingView } from "../../src/components/LoadingView";
 import { ErrorView } from "../../src/components/ErrorView";
 import { useAuth } from "../../src/context/AuthContext";
@@ -16,6 +27,7 @@ export default function RoomDetailScreen() {
   const queryClient = useQueryClient();
 
   const [snackMsg, setSnackMsg] = useState("");
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   const {
     data: room,
@@ -71,9 +83,55 @@ export default function RoomDetailScreen() {
     );
   }
 
+  const photos = room.photos || [];
+  const videos = room.videos || [];
+  const currentPhoto = photos[activePhotoIndex] || photos[0];
+  const currentPhotoUrl = currentPhoto ? getMediaUrl(currentPhoto) : null;
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Photo Gallery Hero */}
+        {photos.length > 0 && currentPhotoUrl && (
+          <Surface style={styles.galleryCard} elevation={1}>
+            <View style={styles.heroContainer}>
+              <Image
+                source={{ uri: currentPhotoUrl }}
+                style={styles.heroImage}
+                resizeMode="cover"
+              />
+              <View style={styles.photoCountBadge}>
+                <Camera size={13} color="#FFFFFF" />
+                <Text style={styles.photoCountText}>
+                  {activePhotoIndex + 1} / {photos.length}
+                </Text>
+              </View>
+            </View>
+
+            {photos.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbsScroll}
+              >
+                {photos.map((p, idx) => {
+                  const pUrl = getMediaUrl(p);
+                  const isActive = idx === activePhotoIndex;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => setActivePhotoIndex(idx)}
+                      style={[styles.thumbBtn, isActive && styles.activeThumbBtn]}
+                    >
+                      <Image source={{ uri: pUrl }} style={styles.thumbImage} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </Surface>
+        )}
+
         {/* Main Info Card */}
         <Surface style={styles.card} elevation={1}>
           <View style={styles.priceHeader}>
@@ -106,6 +164,50 @@ export default function RoomDetailScreen() {
             </Text>
           </View>
         </Surface>
+
+        {/* Location & GPS Info */}
+        {room.latitude !== undefined && room.latitude !== null && room.longitude !== undefined && room.longitude !== null && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleMedium" style={styles.sectionHeading}>
+              Geographic Location
+            </Text>
+            <View style={styles.geoInfoRow}>
+              <Navigation size={18} color="#2563EB" />
+              <View style={styles.geoTextContainer}>
+                <Text style={styles.coordText}>
+                  Latitude: {Number(room.latitude).toFixed(4)} · Longitude: {Number(room.longitude).toFixed(4)}
+                </Text>
+                <Text style={styles.geoSub}>
+                  Calculated against OpenStreetMap geographic coordinates
+                </Text>
+              </View>
+            </View>
+          </Surface>
+        )}
+
+        {/* Video Walkthroughs */}
+        {videos.length > 0 && (
+          <Surface style={styles.card} elevation={1}>
+            <Text variant="titleMedium" style={styles.sectionHeading}>
+              Video Walkthroughs ({videos.length})
+            </Text>
+            {videos.map((vid, idx) => (
+              <View key={idx} style={styles.videoCard}>
+                <VideoIcon size={22} color="#7C3AED" />
+                <View style={styles.videoInfo}>
+                  <Text style={styles.videoTitle} numberOfLines={1}>
+                    {vid.name || `Video Walkthrough ${idx + 1}`}
+                  </Text>
+                  {vid.size ? (
+                    <Text style={styles.videoSize}>
+                      {(vid.size / (1024 * 1024)).toFixed(1)} MB
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </Surface>
+        )}
 
         {/* Amenities Section */}
         {room.roomDetails?.amenities && room.roomDetails.amenities.length > 0 && (
@@ -147,7 +249,7 @@ export default function RoomDetailScreen() {
                 {room.ownerName}
               </Text>
               <Text variant="bodySmall" style={styles.ownerSub}>
-                Listing Owner · LocalConnect Member
+                Listing Owner · NearNest Member
               </Text>
             </View>
           </View>
@@ -215,6 +317,60 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  galleryCard: {
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+  heroContainer: {
+    position: "relative",
+    width: "100%",
+    height: 240,
+    backgroundColor: "#E2E8F0",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoCountBadge: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 6,
+  },
+  photoCountText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  thumbsScroll: {
+    padding: 10,
+    flexDirection: "row",
+    backgroundColor: "#F8FAFC",
+  },
+  thumbBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  activeThumbBtn: {
+    borderColor: "#2563EB",
+  },
+  thumbImage: {
+    width: "100%",
+    height: "100%",
+  },
   card: {
     padding: 18,
     borderRadius: 16,
@@ -265,6 +421,51 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 12,
+  },
+  geoInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F1F5F9",
+    padding: 12,
+    borderRadius: 10,
+  },
+  geoTextContainer: {
+    flex: 1,
+  },
+  coordText: {
+    fontWeight: "700",
+    color: "#0F172A",
+    fontSize: 13,
+  },
+  geoSub: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  videoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FAF5FF",
+    borderColor: "#E9D5FF",
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    gap: 12,
+  },
+  videoInfo: {
+    flex: 1,
+  },
+  videoTitle: {
+    fontWeight: "700",
+    color: "#581C87",
+    fontSize: 13,
+  },
+  videoSize: {
+    color: "#7E22CE",
+    fontSize: 11,
+    marginTop: 2,
   },
   amenitiesGrid: {
     flexDirection: "row",

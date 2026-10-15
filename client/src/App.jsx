@@ -63,8 +63,58 @@ export default function App() {
           <button className="icon-btn" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={18} /></button>
         </div>
         <div className="radius">
-          <label htmlFor="radius">Show things within <b>{radius} km</b></label>
-          <input id="radius" type="range" min="1" max="5" step="1" value={radius} onChange={(e) => setRadius(Number(e.target.value))} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <label htmlFor="radius" style={{ fontSize: "0.85rem", fontWeight: "600" }}>Distance radius</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="number"
+                min="0.5"
+                max="100"
+                step="0.5"
+                value={radius}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0.1) setRadius(Math.min(100, Math.max(0.5, val)));
+                }}
+                style={{
+                  width: "55px",
+                  padding: "2px 6px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border)",
+                  fontSize: "0.85rem",
+                  fontWeight: "700",
+                  textAlign: "right",
+                  background: "var(--bg)",
+                  color: "var(--fg)",
+                }}
+                aria-label="Distance radius in kilometers"
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>km</span>
+            </div>
+          </div>
+          <input
+            id="radius"
+            type="range"
+            min="0.5"
+            max="100"
+            step="0.5"
+            value={radius}
+            onChange={(e) => setRadius(parseFloat(e.target.value))}
+            style={{ width: "100%", cursor: "pointer" }}
+          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px" }}>
+            {[1, 5, 10, 25, 50, 100].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={`chip ${radius === preset ? "on" : ""}`}
+                style={{ fontSize: "0.72rem", padding: "2px 6px", cursor: "pointer" }}
+                onClick={() => setRadius(preset)}
+              >
+                {preset}km
+              </button>
+            ))}
+          </div>
         </div>
       </aside>
       <main className="main" data-section={section}>

@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { apiClient } from "./client";
 import { Listing, PaginatedListings } from "../types";
 
@@ -12,6 +13,9 @@ export interface ListingFilterParams {
   vehicleType?: string;
   kind?: "lost" | "found";
   serviceCategory?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
 }
 
 export async function fetchListings(params: ListingFilterParams = {}): Promise<PaginatedListings> {
@@ -38,3 +42,41 @@ export async function deleteListing(id: string): Promise<{ success: boolean; del
   const response = await apiClient.delete<{ success: boolean; deletedId: string }>(`/listings/${id}`);
   return response.data;
 }
+
+export interface UploadedFileResponse {
+  url: string;
+  originalName: string;
+  size: number;
+  mimeType: string;
+}
+
+export async function uploadListingMedia(
+  files: Array<{ uri: string; name?: string; type?: string }>
+): Promise<UploadedFileResponse[]> {
+  const formData = new FormData();
+
+  files.forEach((file, index) => {
+    const ext = file.uri.split(".").pop()?.toLowerCase() || "jpg";
+    const mimeType = file.type || (ext === "mp4" || ext === "mov" ? "video/mp4" : "image/jpeg");
+    const name = file.name || `mobile_media_${index}_${Date.now()}.${ext}`;
+
+    formData.append("files", {
+      uri: Platform.OS === "android" ? file.uri : file.uri.replace("file://", ""),
+      name,
+      type: mimeType,
+    } as any);
+  });
+
+  const response = await apiClient.post<{ success: boolean; files: UploadedFileResponse[] }>(
+    "/upload",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return response.data.files || [];
+}
+

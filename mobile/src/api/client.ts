@@ -15,6 +15,28 @@ export function getBaseUrl(): string {
   return "http://10.0.2.2:5000/api/v1";
 }
 
+export function getServerRoot(): string {
+  const base = getBaseUrl();
+  return base.replace(/\/api\/v1\/?$/, "");
+}
+
+export function getMediaUrl(item?: any): string {
+  if (!item) return "";
+  const rawUrl = typeof item === "string" ? item : (item.url || "");
+  if (!rawUrl) return "";
+  if (
+    rawUrl.startsWith("http://") ||
+    rawUrl.startsWith("https://") ||
+    rawUrl.startsWith("data:") ||
+    rawUrl.startsWith("file://")
+  ) {
+    return rawUrl;
+  }
+  const root = getServerRoot();
+  const normalizedPath = rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`;
+  return `${root}${normalizedPath}`;
+}
+
 export const apiClient = axios.create({
   baseURL: getBaseUrl(),
   timeout: 10000,

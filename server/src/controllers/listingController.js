@@ -1,4 +1,5 @@
 import { Listing } from "../models/Listing.js";
+import { cleanupMediaFiles } from "../routes/uploadRoutes.js";
 
 export async function getListings(req, res, next) {
   try {
@@ -166,6 +167,9 @@ export async function deleteListing(req, res, next) {
         error: "Unauthorized: You can only delete your own listings.",
       });
     }
+
+    // Clean up persistent media from disk
+    cleanupMediaFiles(listing.photos, listing.videos);
 
     await listing.deleteOne();
 

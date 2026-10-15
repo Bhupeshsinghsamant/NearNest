@@ -12,14 +12,19 @@ import { connectDB } from "./src/config/db.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import listingRoutes from "./src/routes/listingRoutes.js";
 import requestRoutes from "./src/routes/requestRoutes.js";
+import uploadRoutes from "./src/routes/uploadRoutes.js";
 import { updateListing, deleteListing } from "./src/controllers/listingController.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { requireAuth, requireAdmin } from "./src/middleware/auth.js";
 import { Listing } from "./src/models/Listing.js";
+import { calculateHaversineDistanceKm } from "./src/utils/geo.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve persistent media uploads statically
+app.use("/uploads", express.static(path.resolve(__dirname, "uploads")));
 
 // Initialize MongoDB Atlas Connection
 connectDB().catch((err) => {
@@ -40,12 +45,14 @@ app.get("/api/v1/health", (req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/listings", listingRoutes);
 app.use("/api/v1/requests", requestRoutes);
+app.use("/api/v1/upload", uploadRoutes);
 
 // -------------------------------------------------------------
 // Real MongoDB Routes for Web Client (No Demo Fallbacks)
 // -------------------------------------------------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Flags (Admin only, empty array by default unless real flags exist)
 app.get("/api/flags", requireAuth, requireAdmin, (req, res) => {
@@ -69,18 +76,40 @@ app.get("/api/:resource", async (req, res, next) => {
   }
 
   try {
+    const userLat = req.query.lat ? parseFloat(req.query.lat) : null;
+    const userLng = req.query.lng ? parseFloat(req.query.lng) : null;
+    const radiusFilter = req.query.radius ? parseFloat(req.query.radius) : null;
+
     // Read ONLY from real MongoDB Atlas database
     const items = await Listing.find({ type: targetType, status: "active" }).sort({ createdAt: -1 });
 
     const webFormatted = items.map((item) => {
+      // Calculate real spherical distance using Haversine formula
+      let calculatedKm = 0.8;
+      const itemLat = item.latitude ?? item.location?.coordinates?.[1];
+      const itemLng = item.longitude ?? item.location?.coordinates?.[0];
+
+      if (userLat != null && userLng != null && itemLat != null && itemLng != null) {
+        calculatedKm = calculateHaversineDistanceKm(userLat, userLng, itemLat, itemLng);
+      } else if (itemLat != null && itemLng != null) {
+        // Distance relative to central default if user coords not passed
+        calculatedKm = calculateHaversineDistanceKm(28.6139, 77.2090, itemLat, itemLng);
+      }
+
       const base = {
         id: item._id.toString(),
+        _id: item._id.toString(),
         title: item.title,
         description: item.description,
         locality: item.locality,
+        latitude: itemLat || 28.6139,
+        longitude: itemLng || 77.2090,
+        location: item.location || { type: "Point", coordinates: [itemLng || 77.2090, itemLat || 28.6139] },
+        photos: item.photos || [],
+        videos: item.videos || [],
         ownerId: item.ownerId.toString(),
         owner: item.ownerName,
-        km: 0.8,
+        km: calculatedKm,
         ang: 45,
         ...item.toObject(),
       };
@@ -116,7 +145,11 @@ app.get("/api/:resource", async (req, res, next) => {
       return base;
     });
 
-    return res.json(webFormatted);
+    const filtered = radiusFilter != null
+      ? webFormatted.filter((item) => item.km <= radiusFilter)
+      : webFormatted;
+
+    return res.json(filtered);
   } catch (err) {
     next(err);
   }
@@ -141,6 +174,9 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
 
   try {
     const body = req.body || {};
+    const lat = typeof body.latitude === "number" ? body.latitude : (parseFloat(body.latitude) || 28.6139);
+    const lng = typeof body.longitude === "number" ? body.longitude : (parseFloat(body.longitude) || 77.2090);
+
     const listingPayload = {
       ownerId: req.userId,
       ownerName: req.userName,
@@ -148,8 +184,15 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
       title: body.title || body.name || "Untitled Listing",
       description: body.description || "",
       locality: body.locality || body.where || req.user?.area || "Local Area",
+      latitude: lat,
+      longitude: lng,
+      location: {
+        type: "Point",
+        coordinates: [lng, lat],
+      },
       status: "active",
-      photos: [],
+      photos: Array.isArray(body.photos) ? body.photos : [],
+      videos: Array.isArray(body.videos) ? body.videos : [],
     };
 
     if (targetType === "room") {
@@ -188,16 +231,22 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
     }
 
     const created = await Listing.create(listingPayload);
-    console.log(`✅ [MongoDB Atlas] New ${targetType} listing persisted: "${created.title}" by ${req.userName}`);
+    console.log(`✅ [MongoDB Atlas] New ${targetType} listing persisted: "${created.title}" at (${lat}, ${lng}) by ${req.userName}`);
 
     // Return format expected by web client
     const webItem = {
       id: created._id.toString(),
+      _id: created._id.toString(),
       title: created.title,
       owner: created.ownerName,
       ownerId: created.ownerId.toString(),
       locality: created.locality,
-      km: 0.5,
+      latitude: created.latitude,
+      longitude: created.longitude,
+      location: created.location,
+      photos: created.photos,
+      videos: created.videos,
+      km: 0.1,
       ang: 30,
       rent: created.roomDetails?.rent,
       amenities: created.roomDetails?.amenities,

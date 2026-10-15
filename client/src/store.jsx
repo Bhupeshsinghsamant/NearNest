@@ -8,10 +8,46 @@ const readSession = () => {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
 };
 
+const DEFAULT_COORDS = { lat: 28.6139, lng: 77.2090 }; // Central default
+
 export function StoreProvider({ children }) {
-  const [radius, setRadius] = useState(3);
+  const [radius, setRadius] = useState(10);
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem("lc_coords");
+      return saved ? JSON.parse(saved) : DEFAULT_COORDS;
+    } catch {
+      return DEFAULT_COORDS;
+    }
+  });
   const [toast, setToast] = useState(null);
   const [session, setSession] = useState(readSession);
+
+  // Auto-detect browser location once if available
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserLocation(coords);
+          try {
+            localStorage.setItem("lc_coords", JSON.stringify(coords));
+          } catch {}
+        },
+        () => {
+          // Keep default if permission denied
+        },
+        { timeout: 8000 }
+      );
+    }
+  }, []);
+
+  const updateLocation = (coords) => {
+    setUserLocation(coords);
+    try {
+      localStorage.setItem("lc_coords", JSON.stringify(coords));
+    } catch {}
+  };
 
   const notify = useCallback((message) => {
     setToast(message);
@@ -40,7 +76,19 @@ export function StoreProvider({ children }) {
   };
 
   return (
-    <Ctx.Provider value={{ radius, setRadius, notify, user: session?.user || null, login, signup, logout }}>
+    <Ctx.Provider
+      value={{
+        radius,
+        setRadius,
+        userLocation,
+        setUserLocation: updateLocation,
+        notify,
+        user: session?.user || null,
+        login,
+        signup,
+        logout,
+      }}
+    >
       {children}
       {toast && <div className="toast" role="status">{toast}</div>}
     </Ctx.Provider>
@@ -49,12 +97,21 @@ export function StoreProvider({ children }) {
 
 export const useStore = () => useContext(Ctx);
 
-export function useResource(name) {
+export function useResource(name, extraParams = null) {
+  const { userLocation, radius } = useStore();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
+
+  const fetchItems = useCallback(() => {
     let live = true;
-    get(name)
+    const params = {
+      lat: userLocation?.lat,
+      lng: userLocation?.lng,
+      radius,
+      ...extraParams,
+    };
+
+    get(name, params)
       .then((d) => {
         if (live) {
           setItems(Array.isArray(d) ? d : []);
@@ -68,9 +125,15 @@ export function useResource(name) {
           setLoading(false);
         }
       });
+
     return () => {
       live = false;
     };
-  }, [name]);
-  return [items, setItems, loading];
+  }, [name, userLocation?.lat, userLocation?.lng, radius]);
+
+  useEffect(() => {
+    return fetchItems();
+  }, [fetchItems]);
+
+  return [items, setItems, loading, fetchItems];
 }

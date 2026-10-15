@@ -1,8 +1,9 @@
 import React from "react";
-import { StyleSheet, View, TouchableOpacity } from "react-native";
+import { StyleSheet, View, TouchableOpacity, Image } from "react-native";
 import { Text, Surface, Chip } from "react-native-paper";
-import { MapPin, User as UserIcon, CheckCircle2, Star } from "lucide-react-native";
+import { MapPin, User as UserIcon, CheckCircle2, Star, Camera, Video as VideoIcon, Navigation } from "lucide-react-native";
 import { Listing } from "../types";
+import { getMediaUrl } from "../api/client";
 
 interface ListingCardProps {
   listing: Listing;
@@ -10,6 +11,11 @@ interface ListingCardProps {
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress }) => {
+  const photos = listing.photos || [];
+  const videos = listing.videos || [];
+  const coverItem = photos.length > 0 ? photos[listing.coverIndex || 0] || photos[0] : null;
+  const coverUrl = coverItem ? getMediaUrl(coverItem) : null;
+
   const renderCategoryInfo = () => {
     switch (listing.type) {
       case "room":
@@ -103,47 +109,84 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress }) =>
 
   return (
     <Surface style={styles.card} elevation={1}>
-      <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.inner}>
-        <View style={styles.header}>
-          <Text variant="titleMedium" style={styles.title} numberOfLines={2}>
-            {listing.title}
-          </Text>
-          {renderCategoryInfo()}
-        </View>
-
-        {listing.description ? (
-          <Text variant="bodySmall" style={styles.desc} numberOfLines={2}>
-            {listing.description}
-          </Text>
+      <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+        {coverUrl ? (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: coverUrl }}
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+            <View style={styles.mediaBadges}>
+              {photos.length > 0 && (
+                <View style={styles.mediaBadge}>
+                  <Camera size={11} color="#FFFFFF" />
+                  <Text style={styles.mediaBadgeText}>{photos.length}</Text>
+                </View>
+              )}
+              {videos.length > 0 && (
+                <View style={[styles.mediaBadge, { backgroundColor: "rgba(37, 99, 235, 0.85)" }]}>
+                  <VideoIcon size={11} color="#FFFFFF" />
+                  <Text style={styles.mediaBadgeText}>{videos.length}</Text>
+                </View>
+              )}
+            </View>
+          </View>
         ) : null}
 
-        <View style={styles.footer}>
-          <View style={styles.metaItem}>
-            <MapPin size={13} color="#64748B" />
-            <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
-              {listing.locality}
+        <View style={styles.inner}>
+          <View style={styles.header}>
+            <Text variant="titleMedium" style={styles.title} numberOfLines={2}>
+              {listing.title}
             </Text>
+            {renderCategoryInfo()}
           </View>
 
-          <View style={styles.metaItem}>
-            <UserIcon size={13} color="#64748B" />
-            <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
-              {listing.ownerName}
+          {listing.description ? (
+            <Text variant="bodySmall" style={styles.desc} numberOfLines={2}>
+              {listing.description}
             </Text>
-          </View>
-        </View>
+          ) : null}
 
-        {listing.type === "room" && listing.roomDetails?.amenities?.length ? (
-          <View style={styles.chipsRow}>
-            {listing.roomDetails.amenities.slice(0, 3).map((amenity, i) => (
-              <View key={i} style={styles.amenityChip}>
-                <Text variant="labelSmall" style={styles.amenityText}>
-                  {amenity}
+          <View style={styles.footer}>
+            <View style={styles.metaItem}>
+              <MapPin size={13} color="#64748B" />
+              <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
+                {listing.locality}
+              </Text>
+            </View>
+
+            {listing.distanceKm !== undefined ? (
+              <View style={styles.distanceBadge}>
+                <Navigation size={11} color="#2563EB" />
+                <Text style={styles.distanceText}>
+                  {listing.distanceKm < 1
+                    ? `${Math.round(listing.distanceKm * 1000)} m`
+                    : `${listing.distanceKm.toFixed(1)} km`}
                 </Text>
               </View>
-            ))}
+            ) : null}
+
+            <View style={styles.metaItem}>
+              <UserIcon size={13} color="#64748B" />
+              <Text variant="labelSmall" style={styles.metaText} numberOfLines={1}>
+                {listing.ownerName}
+              </Text>
+            </View>
           </View>
-        ) : null}
+
+          {listing.type === "room" && listing.roomDetails?.amenities?.length ? (
+            <View style={styles.chipsRow}>
+              {listing.roomDetails.amenities.slice(0, 3).map((amenity, i) => (
+                <View key={i} style={styles.amenityChip}>
+                  <Text variant="labelSmall" style={styles.amenityText}>
+                    {amenity}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
       </TouchableOpacity>
     </Surface>
   );
@@ -156,6 +199,51 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
+  },
+  imageContainer: {
+    position: "relative",
+    width: "100%",
+    height: 160,
+    backgroundColor: "#E2E8F0",
+  },
+  cardImage: {
+    width: "100%",
+    height: "100%",
+  },
+  mediaBadges: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    gap: 6,
+  },
+  mediaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  mediaBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  distanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    gap: 3,
+  },
+  distanceText: {
+    color: "#2563EB",
+    fontSize: 11,
+    fontWeight: "700",
   },
   inner: {
     padding: 16,

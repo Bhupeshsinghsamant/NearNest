@@ -40,6 +40,12 @@ export interface ServiceDetails {
   available: boolean;
 }
 
+export interface VideoItem {
+  url: string;
+  name?: string;
+  size?: number;
+}
+
 export interface Listing {
   id: string;
   ownerId: string;
@@ -49,7 +55,16 @@ export interface Listing {
   description: string;
   locality: string;
   status: ListingStatus;
-  photos: string[];
+  photos: Array<string | { url: string; name?: string; size?: number; mimeType?: string }>;
+  videos?: VideoItem[];
+  coverIndex?: number;
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
+  location?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
   roomDetails?: RoomDetails;
   vehicleDetails?: VehicleDetails;
   lostFoundDetails?: LostFoundDetails;

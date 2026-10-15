@@ -38,6 +38,25 @@ const listingSchema = new mongoose.Schema(
       required: [true, "Locality/Area is required"],
       trim: true,
     },
+    latitude: {
+      type: Number,
+      default: 28.6139,
+    },
+    longitude: {
+      type: Number,
+      default: 77.2090,
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: [77.2090, 28.6139],
+      },
+    },
     status: {
       type: String,
       enum: ["active", "closed", "draft"],
@@ -45,7 +64,17 @@ const listingSchema = new mongoose.Schema(
       index: true,
     },
     photos: {
-      type: [String],
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    videos: {
+      type: [
+        {
+          url: { type: String, required: true },
+          name: { type: String, default: "" },
+          size: { type: Number, default: 0 },
+        },
+      ],
       default: [],
     },
 
@@ -108,9 +137,11 @@ const listingSchema = new mongoose.Schema(
   }
 );
 
-// Compound indexes for fast retrieval
+// Compound and geospatial indexes for fast retrieval
 listingSchema.index({ type: 1, createdAt: -1 });
 listingSchema.index({ type: 1, status: 1 });
+listingSchema.index({ location: "2dsphere" });
+listingSchema.index({ latitude: 1, longitude: 1 });
 
 listingSchema.methods.toFormattedJSON = function () {
   return {
@@ -121,8 +152,12 @@ listingSchema.methods.toFormattedJSON = function () {
     title: this.title,
     description: this.description,
     locality: this.locality,
+    latitude: this.latitude,
+    longitude: this.longitude,
+    location: this.location,
     status: this.status,
     photos: this.photos,
+    videos: this.videos,
     roomDetails: this.roomDetails,
     vehicleDetails: this.vehicleDetails,
     lostFoundDetails: this.lostFoundDetails,
