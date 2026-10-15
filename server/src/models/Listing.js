@@ -13,6 +13,11 @@ const listingSchema = new mongoose.Schema(
       required: [true, "Owner name is required"],
       trim: true,
     },
+    ownerPhone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     type: {
       type: String,
       required: [true, "Listing type is required"],

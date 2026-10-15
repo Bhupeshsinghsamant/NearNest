@@ -4,6 +4,8 @@ import {
   getInbox,
   getSentRequests,
   updateRequestStatus,
+  getMessages,
+  sendMessage,
 } from "../controllers/requestController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -13,5 +15,8 @@ router.post("/", requireAuth, createRequest);
 router.get("/inbox", requireAuth, getInbox);
 router.get("/sent", requireAuth, getSentRequests);
 router.patch("/:id", requireAuth, updateRequestStatus);
+router.get("/:id/messages", requireAuth, getMessages);
+router.post("/:id/messages", requireAuth, sendMessage);
 
 export default router;
+

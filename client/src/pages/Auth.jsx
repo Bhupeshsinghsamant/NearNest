@@ -15,7 +15,7 @@ const POINTS = [
 export default function Auth({ mode }) {
   const isSignup = mode === "signup";
   const { login, signup } = useStore();
-  const [form, setForm] = useState({ name: "", email: "", area: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", area: "", password: "", confirm: "" });
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -91,7 +91,13 @@ export default function Auth({ mode }) {
     const email = form.email.trim().toLowerCase();
     run(() =>
       isSignup
-        ? signup({ name: form.name.trim(), email, area: form.area.trim(), password: form.password })
+        ? signup({
+            name: form.name.trim(),
+            email,
+            phone: form.phone.trim(),
+            area: form.area.trim(),
+            password: form.password,
+          })
         : login({ email, password: form.password })
     );
   };
@@ -127,6 +133,17 @@ export default function Auth({ mode }) {
           <Field label="Email">
             <input type="email" value={form.email} onChange={set("email")} autoComplete="email" placeholder="you@example.com" />
           </Field>
+          {isSignup && (
+            <Field label="Mobile / WhatsApp number">
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={set("phone")}
+                placeholder="e.g. +91 98765 43210"
+                autoComplete="tel"
+              />
+            </Field>
+          )}
           {isSignup && (
             <Field label="Your area">
               <div style={{ display: "flex", gap: "8px" }}>

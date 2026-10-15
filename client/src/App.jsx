@@ -102,18 +102,30 @@ export default function App() {
             onChange={(e) => setRadius(parseFloat(e.target.value))}
             style={{ width: "100%", cursor: "pointer" }}
           />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px" }}>
-            {[1, 5, 10, 25, 50, 100].map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                className={`chip ${radius === preset ? "on" : ""}`}
-                style={{ fontSize: "0.72rem", padding: "2px 6px", cursor: "pointer" }}
-                onClick={() => setRadius(preset)}
-              >
-                {preset}km
-              </button>
-            ))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+            {[1, 2, 5, 10, 25, 50, 100].map((preset) => {
+              const isActive = radius === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: "700",
+                    padding: "3px 8px",
+                    borderRadius: "999px",
+                    cursor: "pointer",
+                    background: isActive ? "#2563EB" : "rgba(255, 255, 255, 0.12)",
+                    color: "#FFFFFF",
+                    border: isActive ? "1px solid #3B82F6" : "1px solid rgba(255, 255, 255, 0.2)",
+                    transition: "all 0.15s ease",
+                  }}
+                  onClick={() => setRadius(preset)}
+                >
+                  {preset}km
+                </button>
+              );
+            })}
           </div>
         </div>
       </aside>

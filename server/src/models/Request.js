@@ -28,11 +28,23 @@ const requestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    buyerPhone: {
+      type: String,
+      default: "",
+    },
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Seller ID is required"],
       index: true,
+    },
+    sellerEmail: {
+      type: String,
+      default: "",
+    },
+    sellerPhone: {
+      type: String,
+      default: "",
     },
     message: {
       type: String,
@@ -44,6 +56,31 @@ const requestSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "declined"],
       default: "pending",
       index: true,
+    },
+    messages: {
+      type: [
+        {
+          senderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          senderName: {
+            type: String,
+            required: true,
+          },
+          text: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          createdAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
     },
   },
   {

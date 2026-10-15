@@ -4,7 +4,7 @@ import { signToken } from "../middleware/auth.js";
 
 export async function signup(req, res, next) {
   try {
-    const { name, email, password, area } = req.body;
+    const { name, email, password, area, phone } = req.body;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -22,6 +22,7 @@ export async function signup(req, res, next) {
       email: email.toLowerCase(),
       passwordHash,
       area: area || "",
+      phone: phone || "",
       role: "user",
     });
 

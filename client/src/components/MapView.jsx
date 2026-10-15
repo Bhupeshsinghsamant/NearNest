@@ -135,8 +135,39 @@ export default function MapView({
         const bounds = circleRef.current.getBounds();
         mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20], maxZoom: 14 });
       } catch {}
+      mapInstanceRef.current.invalidateSize();
     }
   }, [centerLat, centerLng, radius]);
+
+  // Robust container resize observer to prevent cut-off / grey tiles
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    const timer1 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 150);
+    const timer2 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 400);
+    const timer3 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 800);
+
+    let ro;
+    if (window.ResizeObserver && mapContainerRef.current) {
+      ro = new ResizeObserver(() => {
+        mapInstanceRef.current?.invalidateSize();
+      });
+      ro.observe(mapContainerRef.current);
+    }
+
+    const handleWindowResize = () => {
+      mapInstanceRef.current?.invalidateSize();
+    };
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, []);
 
   // Update listing markers when pins or selected listing changes
   useEffect(() => {
@@ -202,24 +233,33 @@ export default function MapView({
   return (
     <div className="map-wrapper" style={{ position: "relative", height, borderRadius: 16, overflow: "hidden", border: "1px solid var(--border)" }}>
       <div ref={mapContainerRef} style={{ height: "100%", width: "100%", zIndex: 1 }} />
+
+      {/* Horizontal Radius Indicator at bottom-right */}
       <div
-        className="map-scale"
         style={{
           position: "absolute",
-          top: 12,
+          bottom: 12,
           right: 12,
           zIndex: 400,
-          background: "rgba(255, 255, 255, 0.95)",
-          padding: "4px 10px",
-          borderRadius: 8,
+          background: "rgba(15, 23, 42, 0.88)",
+          color: "#FFFFFF",
+          padding: "6px 14px",
+          borderRadius: "20px",
           fontSize: "12px",
           fontWeight: 700,
-          color: "#0F172A",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          border: "1px solid rgba(255,255,255,0.25)",
+          backdropFilter: "blur(6px)",
+          letterSpacing: "0.2px",
         }}
       >
-        {radius} km radius
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#38BDF8", boxShadow: "0 0 6px #38BDF8" }} />
+        <span>Radius: {radius} km</span>
       </div>
+
       <ul
         className="map-legend"
         style={{

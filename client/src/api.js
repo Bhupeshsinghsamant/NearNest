@@ -118,3 +118,31 @@ export async function login(body) {
   }
   return data;
 }
+
+// In-app chat messages for inquiries
+export async function getRequestMessages(requestId) {
+  const res = await fetch(`/api/requests/${requestId}/messages`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to load chat messages.");
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
+export async function sendRequestMessage(requestId, text) {
+  const res = await fetch(`/api/requests/${requestId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to send message.");
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+

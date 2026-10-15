@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     role: {
       type: String,
       enum: ["user", "admin"],
@@ -49,6 +54,7 @@ userSchema.methods.toPublicJSON = function () {
     id: this._id.toString(),
     name: this.name,
     email: this.email,
+    phone: this.phone || "",
     area: this.area,
     role: this.role,
     createdAt: this.createdAt,

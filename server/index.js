@@ -180,6 +180,7 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
     const listingPayload = {
       ownerId: req.userId,
       ownerName: req.userName,
+      ownerPhone: req.user?.phone || body.phone || "",
       type: targetType,
       title: body.title || body.name || "Untitled Listing",
       description: body.description || "",
