@@ -6,6 +6,7 @@
     "dev": "node --watch index.js",
     "start": "node index.js",
     "test": "node run-tests.js",
+    "test:real": "node test-real-flow.js",
     "seed": "node src/seed.js",
     "verify:db": "node verify-db.js"
   },

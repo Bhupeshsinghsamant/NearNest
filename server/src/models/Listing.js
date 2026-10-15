@@ -17,7 +17,7 @@ const listingSchema = new mongoose.Schema(
       type: String,
       required: [true, "Listing type is required"],
       enum: {
-        values: ["room", "vehicle", "lost_found", "service"],
+        values: ["room", "vehicle", "lost_found", "service", "alert"],
         message: "{VALUE} is not a supported listing category",
       },
       index: true,
@@ -92,6 +92,16 @@ const listingSchema = new mongoose.Schema(
       jobsCount: { type: Number, default: 0, min: 0 },
       available: { type: Boolean, default: true },
     },
+
+    // Category 5: Local Alerts / Emergency
+    alertDetails: {
+      alertType: {
+        type: String,
+        enum: ["Stuck", "Medical", "Blood", "Safety", "Other"],
+        default: "Stuck",
+      },
+      helpersCount: { type: Number, default: 0, min: 0 },
+    },
   },
   {
     timestamps: true,
@@ -117,6 +127,7 @@ listingSchema.methods.toFormattedJSON = function () {
     vehicleDetails: this.vehicleDetails,
     lostFoundDetails: this.lostFoundDetails,
     serviceDetails: this.serviceDetails,
+    alertDetails: this.alertDetails,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

@@ -49,14 +49,28 @@ export function StoreProvider({ children }) {
 
 export const useStore = () => useContext(Ctx);
 
-// Loads a resource and keeps it in local state so pages can add to it instantly.
 export function useResource(name) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let live = true;
-    get(name).then((d) => { if (live) { setItems(d); setLoading(false); } });
-    return () => { live = false; };
+    get(name)
+      .then((d) => {
+        if (live) {
+          setItems(Array.isArray(d) ? d : []);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn(`[LocalConnect] Failed to fetch resource '${name}':`, err.message);
+        if (live) {
+          setItems([]);
+          setLoading(false);
+        }
+      });
+    return () => {
+      live = false;
+    };
   }, [name]);
   return [items, setItems, loading];
 }

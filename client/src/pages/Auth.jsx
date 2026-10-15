@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bike, Eye, EyeOff, KeyRound, MapPinned, SearchCheck, Siren, Wrench, LocateFixed } from "lucide-react";
 import { useStore } from "../store.jsx";
-import { ADMIN_DEMO, DEMO } from "../api.js";
 import { Field } from "../components/ui.jsx";
 
 const POINTS = [
@@ -176,16 +175,6 @@ export default function Auth({ mode }) {
           <button className="btn primary wide" type="submit" disabled={busy}>
             {busy ? "Please wait..." : isSignup ? "Create account" : "Log in"}
           </button>
-          {!isSignup && (
-            <button className="btn wide" type="button" disabled={busy} onClick={() => run(() => login(DEMO))}>
-              Try the demo account
-            </button>
-          )}
-          {!isSignup && (
-            <button className="btn wide" type="button" disabled={busy} onClick={() => run(() => login(ADMIN_DEMO))}>
-              Try the admin account
-            </button>
-          )}
 
           <p className="switch">
             {isSignup ? "Already have an account? " : "New here? "}

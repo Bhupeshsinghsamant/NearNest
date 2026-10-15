@@ -1,8 +1,14 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-// Ensure environment variables are loaded
-dotenv.config();
+// Reliably resolve server/.env regardless of process.cwd()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const envPath = path.resolve(__dirname, "../../.env");
+
+dotenv.config({ path: envPath });
 
 const TARGET_DB_NAME = "NearNest";
 
@@ -39,7 +45,7 @@ export async function connectDB() {
   try {
     const conn = await mongoose.connect(uri, {
       dbName: TARGET_DB_NAME,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 8000,
     });
 
     console.log(

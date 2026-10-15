@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
 import { Text, TextInput, Button, Surface, HelperText } from "react-native-paper";
 import { useRouter } from "expo-router";
-import { LogIn, Lock, Mail, Sparkles } from "lucide-react-native";
+import { LogIn, Lock, Mail } from "lucide-react-native";
 import { useAuth } from "../../src/context/AuthContext";
 
 export default function LoginScreen() {
@@ -30,11 +30,6 @@ export default function LoginScreen() {
     }
   };
 
-  const fillDemoAccount = () => {
-    setEmail("bhupesh@example.com");
-    setPassword("password123");
-    setErrorMsg("");
-  };
 
   return (
     <KeyboardAvoidingView
@@ -106,17 +101,6 @@ export default function LoginScreen() {
           >
             Log In
           </Button>
-
-          {/* Demo account autofill for evaluation */}
-          <Button
-            mode="text"
-            icon={() => <Sparkles size={16} color="#D97706" />}
-            onPress={fillDemoAccount}
-            textColor="#B45309"
-            style={styles.demoBtn}
-          >
-            Fill Demo Account (Tester)
-          </Button>
         </Surface>
 
         <View style={styles.footerRow}>
@@ -182,9 +166,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 4,
     marginTop: 8,
-  },
-  demoBtn: {
-    marginTop: 10,
   },
   errorBox: {
     backgroundColor: "#FEF2F2",
