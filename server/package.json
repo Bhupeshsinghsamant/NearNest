@@ -6,7 +6,8 @@
     "dev": "node --watch index.js",
     "start": "node index.js",
     "test": "node run-tests.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "verify:db": "node verify-db.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
