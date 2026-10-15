@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bike, Eye, EyeOff, KeyRound, MapPinned, SearchCheck, Siren, Wrench } from "lucide-react";
+import { Bike, Eye, EyeOff, KeyRound, MapPinned, SearchCheck, Siren, Wrench, LocateFixed } from "lucide-react";
 import { useStore } from "../store.jsx";
 import { ADMIN_DEMO, DEMO } from "../api.js";
 import { Field } from "../components/ui.jsx";
@@ -20,7 +20,50 @@ export default function Auth({ mode }) {
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser. Please enter your area manually.");
+      return;
+    }
+    setLocating(true);
+    setError("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await res.json();
+          const place =
+            data.address?.suburb ||
+            data.address?.neighbourhood ||
+            data.address?.residential ||
+            data.address?.city_district ||
+            data.address?.city ||
+            data.address?.town ||
+            data.display_name?.split(",")[0] ||
+            "Detected Area";
+          setForm((prev) => ({ ...prev, area: place }));
+        } catch {
+          setForm((prev) => ({
+            ...prev,
+            area: `Near (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`,
+          }));
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        setLocating(false);
+        setError("GPS permission denied or unavailable. Please type your locality manually.");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   const validate = () => {
     if (isSignup && form.name.trim().length < 2) return "Enter your full name.";
@@ -87,7 +130,31 @@ export default function Auth({ mode }) {
           </Field>
           {isSignup && (
             <Field label="Your area">
-              <input value={form.area} onChange={set("area")} placeholder="Locality or colony" />
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  style={{ flex: 1 }}
+                  value={form.area}
+                  onChange={set("area")}
+                  placeholder="Locality or colony (or use GPS)"
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={detectLocation}
+                  disabled={locating}
+                  title="Detect my current location with GPS"
+                  style={{
+                    whiteSpace: "nowrap",
+                    padding: "0 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <LocateFixed size={16} />
+                  <span>{locating ? "Locating..." : "Use GPS"}</span>
+                </button>
+              </div>
             </Field>
           )}
           <Field label="Password">

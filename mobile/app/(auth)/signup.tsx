@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
-import { Text, TextInput, Button, Surface } from "react-native-paper";
+import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { Text, TextInput, Button, Surface, HelperText } from "react-native-paper";
 import { useRouter } from "expo-router";
-import { UserPlus, User, Mail, Lock, MapPin } from "lucide-react-native";
+import * as Location from "expo-location";
+import { UserPlus, User, Mail, Lock, MapPin, LocateFixed } from "lucide-react-native";
 import { useAuth } from "../../src/context/AuthContext";
 
 export default function SignupScreen() {
@@ -13,6 +14,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [area, setArea] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -33,6 +35,46 @@ export default function SignupScreen() {
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || "Signup failed. Try again.";
       setErrorMsg(msg);
+    }
+  };
+
+  const detectLocation = async () => {
+    setIsLocating(true);
+    setErrorMsg("");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission",
+          "Location permission was not granted. You can still type your locality manually below."
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+
+      if (place) {
+        const areaComponents = [
+          place.subregion || place.district,
+          place.city,
+        ].filter(Boolean);
+        const detected = areaComponents.length > 0 ? areaComponents.join(", ") : place.name || "Detected Area";
+        setArea(detected);
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Location Unavailable",
+        "Could not automatically detect GPS location. Please enter your area manually."
+      );
+    } finally {
+      setIsLocating(false);
     }
   };
 
@@ -89,15 +131,31 @@ export default function SignupScreen() {
             style={styles.input}
           />
 
-          <TextInput
-            label="Locality / Campus Area"
-            value={area}
-            onChangeText={setArea}
-            placeholder="e.g. North Campus, Sector 4"
-            left={<TextInput.Icon icon={() => <MapPin size={18} color="#64748B" />} />}
-            mode="outlined"
-            style={styles.input}
-          />
+          {/* Area Input with GPS Auto-Detect Button */}
+          <View style={styles.areaContainer}>
+            <TextInput
+              label="Locality / Campus Area"
+              value={area}
+              onChangeText={setArea}
+              placeholder="e.g. North Campus, Sector 4"
+              left={<TextInput.Icon icon={() => <MapPin size={18} color="#64748B" />} />}
+              mode="outlined"
+              style={[styles.input, { marginBottom: 4 }]}
+            />
+
+            <Button
+              mode="text"
+              icon={() => <LocateFixed size={16} color="#2563EB" />}
+              onPress={detectLocation}
+              loading={isLocating}
+              disabled={isLocating}
+              textColor="#2563EB"
+              style={styles.gpsBtn}
+              compact
+            >
+              {isLocating ? "Fetching GPS Location..." : "Auto-detect with GPS (or edit manually)"}
+            </Button>
+          </View>
 
           <TextInput
             label="Password (min 6 chars) *"
@@ -188,6 +246,14 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 14,
     backgroundColor: "#FFFFFF",
+  },
+  areaContainer: {
+    marginBottom: 10,
+  },
+  gpsBtn: {
+    alignSelf: "flex-start",
+    marginTop: -2,
+    marginBottom: 8,
   },
   submitBtn: {
     borderRadius: 10,
