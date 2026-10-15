@@ -68,6 +68,11 @@ const listingSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     photos: {
       type: [mongoose.Schema.Types.Mixed],
       default: [],

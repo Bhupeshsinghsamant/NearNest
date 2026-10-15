@@ -42,6 +42,50 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+  // Auto-sync authenticated user role & profile from MongoDB Atlas
+  useEffect(() => {
+    if (session?.token) {
+      get("auth/me")
+        .then((res) => {
+          const freshUser = res?.user || res?.data || (res?.id ? res : null);
+          if (freshUser && (freshUser.id || freshUser._id)) {
+            setSession((prev) => {
+              if (!prev) return prev;
+              const updated = { ...prev, user: { ...prev.user, ...freshUser } };
+              try { localStorage.setItem(SESSION_KEY, JSON.stringify(updated)); } catch {}
+              return updated;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!session?.token) return;
+    try {
+      const data = await get("requests/unread-count");
+      if (typeof data?.unreadCount === "number") {
+        setUnreadCount(data.unreadCount);
+      }
+    } catch {
+      // Ignore background poll errors
+    }
+  }, [session?.token]);
+
+  // Periodic background unread count poller every 4.5s
+  useEffect(() => {
+    if (!session?.token) {
+      setUnreadCount(0);
+      return;
+    }
+    refreshUnreadCount();
+    const interval = setInterval(refreshUnreadCount, 4500);
+    return () => clearInterval(interval);
+  }, [session?.token, refreshUnreadCount]);
+
   const updateLocation = (coords) => {
     setUserLocation(coords);
     try {
@@ -84,6 +128,8 @@ export function StoreProvider({ children }) {
         setUserLocation: updateLocation,
         notify,
         user: session?.user || null,
+        unreadCount,
+        refreshUnreadCount,
         login,
         signup,
         logout,

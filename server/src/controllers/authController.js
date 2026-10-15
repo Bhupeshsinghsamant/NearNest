@@ -58,6 +58,13 @@ export async function login(req, res, next) {
       });
     }
 
+    if (user.isBanned) {
+      return res.status(403).json({
+        success: false,
+        error: `Your account has been suspended by administration.${user.banReason ? ` Reason: ${user.banReason}` : " Please contact platform support."}`,
+      });
+    }
+
     const token = signToken({ id: user._id.toString(), role: user.role });
 
     return res.json({

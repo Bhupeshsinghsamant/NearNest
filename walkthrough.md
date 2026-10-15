@@ -1,136 +1,81 @@
-# NearNest / LocalConnect — Comprehensive Production Upgrade Walkthrough
+# NearNest / LocalConnect — Direct Messages Hub, Seller Listing Edit & Master Admin Control Walkthrough
 
-## 1. Project Overview & Milestone Achieved
+## 1. Summary of Completed Deliverables
 
-NearNest has been transformed into a fully persistent, zero-cost, location-based marketplace operating across **Web (`client/`)** and **Mobile (`mobile/`)**, backed by **Node.js/Express (`server/`)** and **MongoDB Atlas (`NearNest` database)**.
-
-Every feature requested has been implemented, verified, and strictly respects the **Zero-Cost Constraint** (OpenStreetMap + Leaflet + Local Multer disk storage; zero paid Google Maps keys, zero paid cloud storage).
-
----
-
-## 2. Key Accomplishments
-
-### 2.1 Persistent Storage First & Zero Demo Data
-- **Real Database Schema**: Mongoose schema updated with `location` (GeoJSON Point with 2dsphere index), `latitude`, `longitude`, `photos` array, `videos` array, and `coverIndex`.
-- **Zero Mock Data**: Purged fake mock fallbacks (`data.json`, hardcoded mock inboxes `Aman`/`Rohit`, demo login buttons, and offline fake tokens).
-- **Cross-Account Public Persistence**: Any room or listing created by Account A is immediately saved in Atlas and queryable by Account B.
-- **Strict Ownership Isolation**: Only listing owners can edit or delete their listings; unauthorized attempts trigger `403 Forbidden`.
-
-### 2.2 Genuine Geographic Map & Configurable Radius (Zero Cost)
-- **Leaflet & OpenStreetMap**: Integrated interactive OpenStreetMap tiles with custom SVG category pins (Room 🏠, Vehicle 🛵, Lost & Found 🔍, Services 🔧).
-- **Dynamic Radius Circle**: Renders a dynamic geographic circle (`L.circle`) around the user's coordinates that accurately grows and shrinks.
-- **Radius Control (0.5 km to 100 km)**:
-  - Draggable range slider from `0.5 km` to `100 km`.
-  - Numeric input box with decimal precision (e.g. `2.5 km`).
-  - Quick presets: `1 km`, `5 km`, `10 km`, `25 km`, `50 km`, `100 km`.
-- **Haversine Distance Calculations**: Verified mathematical distance computation (`calculateHaversineDistanceKm`) on the backend with spherical geometry.
-
-### 2.3 Room Photos & Videos (Web & Mobile)
-- **Zero-Cost Media Storage**: Express serves uploaded files statically via `/uploads`. Multer securely saves media in `server/uploads/listings/` with UUID naming.
-- **Quota Limits**: Max 10 photos (up to 10MB each), max 2 videos (up to 50MB each, MP4/WEBM/MOV).
-- **MIME Security Validation**: Strict MIME inspection blocks executables, scripts, and unknown formats.
-- **Orphan File Cleanup**: When a listing is deleted, all associated photos and videos are automatically deleted from local disk (`cleanupMediaFiles`).
-- **Web UI (`client/src/pages/Rooms.jsx`)**:
-  - Live upload panel with Camera Photo, Camera Video, and Gallery pickers.
-  - Cover photo selector with "Cover" badge.
-  - Reordering (Move Left / Move Right).
-  - High-res Media Viewer Modal with image carousel and video walkthrough player.
-  - Cards show cover image with `📷 Photos` and `🎥 Videos` count badges.
-- **Mobile UI (`mobile/app/rooms/create.tsx`, `[id].tsx`, `ListingCard.tsx`)**:
-  - `expo-image-picker` integrated for Camera Photo, Camera Video, and Gallery.
-  - `expo-location` for single-tap GPS coordinate detection.
-  - Card displays cover image thumbnail with photo/video count badges and distance badge (`📍 2.3 km away`).
-  - Detail screen features an interactive photo gallery hero and video walkthrough cards.
+### 1.1 Dedicated Direct Messages Hub & Live Sidebar Notification Badge
+- **User Issue**: "Aise pata nhi chal raha h message aya ha ki nhi toh ek message session de do instagram ki taraf ki message miss na ho... unique touch hona chahiye". Messages were previously buried inside the Rooms page under sub-tabs, with zero visibility when on other pages.
+- **Solution Delivered**:
+  1. **Global Unread Notification Badge**:
+     - Added a first-class **"Messages"** item in the main sidebar navigation with `MessageSquare` icon.
+     - Dynamic pulsing notification badge (e.g. `🔴 2`) appears instantly whenever any user receives an inquiry or a chat message, visible from anywhere in the app (Home, Rentals, Services, Admin, etc.).
+     - Built-in background poller in `store.jsx` continuously checks `/api/requests/unread-count` every 4.5 seconds.
+  2. **Instagram Direct-Inspired Split-View Layout (`/messages`)**:
+     - **Left Column (Conversations List)**:
+       - User avatar with initials and green active/online indicator dot.
+       - Partner name with role badge (`Buyer Inquiry` vs `Listing Owner`).
+       - **LocalConnect Context Tag**: Displays exact listing pill with price (e.g. `🏠 double room · ₹50,000`, `⚡ Electrician`, `🏍️ Scooty`).
+       - Latest message preview with sender prefix ("You: ...") and relative time (`2m ago`, `1h ago`).
+       - Blue unread count badge pill when new messages arrive.
+       - Search bar to search conversations by user name or listing title.
+       - Filter pills ("All", "Buying", "Selling", "Unread").
+     - **Right Column (Active Chat Conversation Pane)**:
+       - **Header**: Partner avatar, name, locality (`📍 Bhimtal, Nainital`), listing title, price pill, and connection status.
+       - **1-Click Seller Decision**: If an inquiry is pending, the seller has **"Accept Request"** and **"Decline"** buttons right inside the chat header.
+       - **1-Click Contact Reveal**: Once connected, direct **"Call"** (`tel:`) and **"WhatsApp"** shortcuts are present in the header.
+       - **Message Feed**: Clean chat bubbles (me on right in royal blue with double checkmarks; them on left in white card with dark text).
+       - **LocalConnect Unique Negotiation Chips**: Quick action pills directly above the input:
+         - `"📍 Can I visit today?"`
+         - `"💰 Is the rent/price negotiable?"`
+         - `"📞 Please call me directly"`
+         - `"🤝 Ready to finalize!"`
+         - `"✅ When can I move in / pick up?"`
+       - **Auto-Scroll & Live Sync**: Automatically marks conversations as read upon selection and polls active messages every 3.5 seconds.
 
 ---
 
-## 3. Automated Test Verification Results
-
-### Test 1: Server Security & Category Isolation (`npm test --prefix server`)
-- **17 / 17 tests passed**:
-  - Health check endpoint (200)
-  - Registration, login, and invalid credential rejection
-  - Category isolation across all 4 categories
-  - 403 Forbidden authorization protection for unauthorized edits and deletes
-  - Owner-authorized updates and deletes
-
-### Test 2: Live MongoDB Atlas End-to-End (`npm run test:real --prefix server`)
-- **11 / 11 tests passed**:
-  - Connected to live MongoDB Atlas cluster `BhupeshSinghSamant`, DB `NearNest`
-  - Real user registration (`Bhupesh Singh Samant`, `Aman Verma`)
-  - Real listing creation (`2 floor house (4 rooms + 2 bathroom)`, ₹50,000/mo)
-  - Buyer query & cross-account visibility
-  - Persistent inquiry submission & owner inbox acceptance
-  - 403 authorization guard verification
-  - Cleanup from Atlas collection
-
-### Test 3: Geospatial Radius & Media Storage (`npm run test:geo-media --prefix server`)
-- **8 / 8 tests passed**:
-  - CP to Noida distance verified: `12.63 km`
-  - CP to Meerut distance verified: `61.78 km`
-  - Multipart photo and video upload verified on disk
-  - Invalid MIME type rejected
-  - Listings created at CP, Noida, and Meerut
-  - Radius 5 km returned CP, excluded Noida & Meerut
-  - Radius 20 km returned CP & Noida, excluded Meerut
-  - Radius 100 km returned all 3 listings
-  - Automatic disk cleanup on listing deletion confirmed
-
-### Test 4: Client Production Build (`npm run build --prefix client`)
-- **Vite production build succeeded in 7.27s with 0 errors**.
-
-### Test 5: Mobile TypeScript Check (`npx.cmd tsc --noEmit --prefix mobile`)
-- **TypeScript compilation succeeded with 0 errors**.
+### 1.2 Fixed Blank Active Filter Chips (CSS Specificity & High Contrast)
+- **Problem**: When a user clicked any filter chip (e.g. "All" or "Electrician" in `Services.jsx`), the button turned into an empty white pill with white text on a white background.
+- **Root Cause**: `.chips.big .chip` set `background: #ffffff`, while `.chip.on` set `color: #ffffff`. Equal specificity resulted in white text on a white background.
+- **Solution**:
+  - Overhauled `.chip`, `.chip.on`, `.chips.big .chip.on`, and `.seg button.on` in `client/src/styles.css`.
+  - Set active chips to solid, vibrant royal blue (`#2563EB`) with crisp bold white text (`#FFFFFF`) and drop-shadow styling.
+  - Every filter option across the platform now has bold high contrast.
 
 ---
 
-## 4. Git Checkpoint History (Local)
-
-```text
-ed5c068 feat: persistent geo-radius, Leaflet map, and room media uploads for web and mobile
-1e64e1e feat: real Leaflet map, configurable radius up to 100km, and room media uploads
-3eb8099 feat(mobile): React Native Expo mobile app with 4 dedicated category sections
-af6c161 feat(server): configure MongoDB Atlas connection for NearNest
-9b7d1bb feat(server): persistent MongoDB backend with auth and ownership authorization
-b150f1a chore: initial baseline
-```
-
-> [!NOTE]
-> All commits are currently stored locally. No commits have been pushed to GitHub, pending your explicit approval.
-> The `.env` file and uploaded binary media are excluded from git.
+### 1.3 Seller Room Listing Edit Capability (Photos, Videos, Rent & Details)
+- **Frontend (`Rooms.jsx`)**:
+  - Added an **"Edit"** button (with `Pencil` icon) next to "Delete" on listing cards owned by the user.
+  - Built `EditRoomModal` pre-populated with MongoDB Atlas data:
+    - **Title & Rent**: Update title and price in ₹.
+    - **Locality & GPS**: Edit location name and click **"Use My GPS"** to auto-fill latitude/longitude coordinates.
+    - **Amenities**: Comma-separated tag list.
+    - **Photo Management**: Visual grid with 1-click **Remove (X)**, **"Make Cover"** selector, and buttons to capture via Camera or upload from Gallery.
+    - **Video Tours**: View video tours with 1-click **Remove (X)** and buttons to Record Video or upload existing files.
+  - On submit, calls `PATCH /api/rooms/:id` and updates local state without page reload.
+- **Backend (`listingController.js`)**:
+  - Enhanced `updateListing` to properly update Mongoose subdocuments (`roomDetails.rent`, `roomDetails.amenities`, `roomDetails.period`), GeoJSON coordinates (`location.coordinates: [lng, lat]`), and media arrays.
+  - Strict ownership security prevents unauthorized tampering.
 
 ---
 
-## 5. How to Run & Test on PC
+### 1.4 Master Admin Control Center & Backend Management System
+- **Atlas Role Promotion**:
+  - Promoted user account **`Bhupesh Singh Samant`** (`bhupeshsinghsamant555@gmail.com`) to `role: "admin"` in MongoDB Atlas.
+  - Sidebar navigation updated to **"Admin Control"** (`ShieldAlert` icon).
+- **Admin Control Dashboard (`/admin`)**:
+  1. **Platform Overview**: Live KPI cards for total users, listings, requests, and messages.
+  2. **All Listings**: Search/filter all listings in the system with 1-click administrative Delete.
+  3. **Inquiries & Chats**: Inspect all inquiries between buyers and sellers with 1-click request deletion.
+  4. **User Accounts**: Manage registered accounts and toggle admin permissions.
 
-### Step 1: Start Backend Server
-```powershell
-npm.cmd run dev --prefix server
-```
-*Server runs on `http://localhost:5000` connected to MongoDB Atlas (`NearNest`).*
+---
 
-### Step 2: Start Web Application
-```powershell
-npm.cmd run dev --prefix client
-```
-*Open `http://localhost:5173` in your browser.*
+## 2. Automated Test Verification
 
-### Step 3: Test Real Flow on Web
-1. Open `http://localhost:5173` and click **"Create Account"**.
-2. Enter your name, email, password, and area.
-3. Go to **"Room Rent"** and click **"+ List a Room"**.
-4. Fill title, rent, address, click **"Detect GPS"** or enter coordinates.
-5. Upload room photos and video walkthrough.
-6. Choose a cover photo, click **"Publish Room Listing"**.
-7. Log out, register Account 2 (e.g. Aman), and search rooms:
-   - Your listing is visible!
-   - Dynamic radius slider can be dragged from 0.5 km to 100 km to filter listings.
-   - Click the listing photo thumbnail to open the full-screen photo carousel and video player.
-   - Click "Request to Contact" to send a persistent inquiry.
-   - Notice: Account 2 cannot delete Account 1's listing.
-
-### Step 4: Run Mobile App (Optional)
-```powershell
-npm.cmd run start --prefix mobile
-```
-*Scan the terminal QR code with the **Expo Go** app on your Android phone.*
+| Test Suite | Result | Details |
+|---|---|---|
+| **Direct Messages Hub & Unread Tracking** (`npm run test:messages`) | **14/14 Passed** | Inquiries create conversations, dynamic unread count increment for seller, unread count clearing on read, seller reply increments unread count for buyer, partner/listing context populated, 403 intruder security block. |
+| **Admin & Room Edit Verification** (`npm run test:admin`) | **12/12 Passed** | Room creation in Atlas, seller editing rent to ₹55,000 + 5 amenities + 2 photos, 403 non-admin block, admin overview metrics, admin listings manager, admin users manager, admin deleting listing with media cleanup. |
+| **Server Security & Auth** (`npm test`) | **17/17 Passed** | Health check, JWT auth, category isolation, 403 authorization protection |
+| **Client Production Build** (`npm run build --prefix client`) | **0 Errors (6.96s)** | `vite build` generated clean production bundle in `client/dist`. |

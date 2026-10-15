@@ -9,6 +9,8 @@
     "test:real": "node test-real-flow.js",
     "test:geo-media": "node test-geo-media.js",
     "test:chat": "node test-chat-contact.js",
+    "test:admin": "node --env-file=.env test-admin-edit.js",
+    "test:messages": "node --env-file=.env test-messages-hub.js",
     "seed": "node src/seed.js",
     "verify:db": "node verify-db.js"
   },

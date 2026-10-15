@@ -13,6 +13,7 @@ import authRoutes from "./src/routes/authRoutes.js";
 import listingRoutes from "./src/routes/listingRoutes.js";
 import requestRoutes from "./src/routes/requestRoutes.js";
 import uploadRoutes from "./src/routes/uploadRoutes.js";
+import adminRoutes from "./src/routes/adminRoutes.js";
 import { updateListing, deleteListing } from "./src/controllers/listingController.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { requireAuth, requireAdmin } from "./src/middleware/auth.js";
@@ -53,6 +54,7 @@ app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Flags (Admin only, empty array by default unless real flags exist)
 app.get("/api/flags", requireAuth, requireAdmin, (req, res) => {

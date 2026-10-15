@@ -57,6 +57,14 @@ const requestSchema = new mongoose.Schema(
       default: "pending",
       index: true,
     },
+    buyerLastReadAt: {
+      type: Date,
+      default: () => new Date(0),
+    },
+    sellerLastReadAt: {
+      type: Date,
+      default: () => new Date(0),
+    },
     messages: {
       type: [
         {

@@ -1,8 +1,9 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { Home as HomeIcon, KeyRound, SearchCheck, Bike, Wrench, Siren, ShieldAlert, MapPinned, LogOut } from "lucide-react";
+import { Home as HomeIcon, KeyRound, SearchCheck, Bike, Wrench, Siren, ShieldAlert, MapPinned, LogOut, MessageSquare } from "lucide-react";
 import { useStore } from "./store.jsx";
 import Home from "./pages/Home.jsx";
 import Rooms from "./pages/Rooms.jsx";
+import Messages from "./pages/Messages.jsx";
 import LostFound from "./pages/LostFound.jsx";
 import Rentals from "./pages/Rentals.jsx";
 import Services from "./pages/Services.jsx";
@@ -12,16 +13,17 @@ import Auth from "./pages/Auth.jsx";
 
 const NAV = [
   { to: "/", label: "Nearby", icon: HomeIcon, end: true },
+  { to: "/messages", label: "Messages", icon: MessageSquare, isMessages: true },
   { to: "/rooms", label: "Rooms", icon: KeyRound },
   { to: "/lost-found", label: "Lost & found", icon: SearchCheck },
   { to: "/rentals", label: "Rentals", icon: Bike },
   { to: "/services", label: "Services", icon: Wrench },
   { to: "/alerts", label: "Alerts", icon: Siren },
-  { to: "/admin", label: "Safety desk", icon: ShieldAlert, admin: true },
+  { to: "/admin", label: "Admin Control", icon: ShieldAlert, admin: true },
 ];
 
 export default function App() {
-  const { radius, setRadius, user, logout } = useStore();
+  const { radius, setRadius, user, logout, unreadCount } = useStore();
   const { pathname } = useLocation();
   const section = pathname.split("/")[1] || "home";
 
@@ -47,10 +49,15 @@ export default function App() {
           </div>
         </div>
         <nav>
-          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, icon: Icon, end }) => (
+          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, icon: Icon, end, isMessages }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "navlink on" : "navlink")}>
               <Icon size={19} />
               <span>{label}</span>
+              {isMessages && unreadCount > 0 && (
+                <span className="nav-badge" title={`${unreadCount} unread message(s)`}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -132,6 +139,7 @@ export default function App() {
       <main className="main" data-section={section}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/messages" element={<Messages />} />
           <Route path="/rooms" element={<Rooms />} />
           <Route path="/lost-found" element={<LostFound />} />
           <Route path="/rentals" element={<Rentals />} />

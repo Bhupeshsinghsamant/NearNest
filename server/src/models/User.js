@@ -37,6 +37,16 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    banReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   {
     timestamps: true,
@@ -57,6 +67,8 @@ userSchema.methods.toPublicJSON = function () {
     phone: this.phone || "",
     area: this.area,
     role: this.role,
+    isBanned: this.isBanned || false,
+    banReason: this.banReason || "",
     createdAt: this.createdAt,
   };
 };

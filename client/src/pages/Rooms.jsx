@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Clock,
   Check,
+  Pencil,
 } from "lucide-react";
 import MapView from "../components/MapView.jsx";
 import { Empty, Field, Modal, PageHead, Segmented } from "../components/ui.jsx";
@@ -39,6 +40,7 @@ export default function Rooms() {
   const [loadingSent, setLoadingSent] = useState(false);
   const [viewingMedia, setViewingMedia] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
+  const [editingRoom, setEditingRoom] = useState(null);
 
   // Fetch real seller inbox from MongoDB Atlas
   const fetchInbox = async () => {
@@ -161,6 +163,31 @@ export default function Rooms() {
       notify("Room listing and attached media removed from database.");
     } catch (err) {
       notify(err.message || "Failed to delete room listing.");
+    }
+  };
+
+  // Update persistent listing in MongoDB Atlas
+  const updateRoom = async (id, form) => {
+    try {
+      const updated = await patch("rooms", id, {
+        title: form.title,
+        rent: Number(form.rent),
+        locality: form.locality,
+        latitude: form.latitude,
+        longitude: form.longitude,
+        amenities: typeof form.amenities === "string" ? form.amenities.split(",").map((s) => s.trim()).filter(Boolean) : form.amenities,
+        photos: form.photos || [],
+        videos: form.videos || [],
+        description: form.description || "",
+      });
+      const resolved = updated.data || updated;
+      setRooms((prev) =>
+        prev.map((item) => ((item.id || item._id) === id ? { ...item, ...resolved } : item))
+      );
+      setEditingRoom(null);
+      notify("Room listing updated successfully in MongoDB Atlas!");
+    } catch (err) {
+      notify(err.message || "Failed to update room listing.");
     }
   };
 
@@ -334,6 +361,16 @@ export default function Rooms() {
                     {isOwner ? (
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", marginLeft: "auto" }}>
                         <span className="status ok"><CheckCircle2 size={13} style={{ marginRight: 4 }} /> Your room</span>
+                        <button
+                          className="btn"
+                          style={{ borderColor: "#2563EB", color: "#2563EB" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingRoom(r);
+                          }}
+                        >
+                          <Pencil size={13} style={{ marginRight: 4 }} /> Edit
+                        </button>
                         <button className="btn" style={{ borderColor: "#ef4444", color: "#ef4444" }} onClick={(e) => { e.stopPropagation(); deleteRoom(roomId); }}>
                           <Trash2 size={13} style={{ marginRight: 4 }} /> Delete
                         </button>
@@ -572,6 +609,17 @@ export default function Rooms() {
           onSave={addRoom}
           defaultLocality={user?.area}
           defaultCoords={userLocation}
+          notify={notify}
+        />
+      )}
+
+      {/* Edit Room Modal */}
+      {editingRoom && (
+        <EditRoomModal
+          room={editingRoom}
+          onClose={() => setEditingRoom(null)}
+          onSave={(form) => updateRoom(editingRoom.id || editingRoom._id, form)}
+          userLocation={userLocation}
           notify={notify}
         />
       )}
@@ -889,6 +937,334 @@ function AddRoomModal({ onClose, onSave, defaultLocality, defaultCoords, notify 
         style={{ marginTop: 16 }}
       >
         {uploading ? "Uploading media..." : "Publish Room to Database"}
+      </button>
+    </Modal>
+  );
+}
+
+/**
+ * Modal for sellers to edit existing room details, photos, videos, rent, and location
+ */
+function EditRoomModal({ room, onClose, onSave, userLocation, notify }) {
+  const [form, setForm] = useState({
+    title: room.title || room.name || "",
+    rent: room.rent != null ? room.rent : "",
+    locality: room.locality || room.where || "",
+    amenities: Array.isArray(room.amenities) ? room.amenities.join(", ") : (room.amenities || ""),
+    latitude: room.latitude || 28.6139,
+    longitude: room.longitude || 77.2090,
+    description: room.description || "",
+  });
+
+  const [photos, setPhotos] = useState(room.photos || []);
+  const [videos, setVideos] = useState(room.videos || []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+
+  const camPhotoRef = useRef(null);
+  const camVideoRef = useRef(null);
+  const galPhotoRef = useRef(null);
+  const galVideoRef = useRef(null);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const handleFiles = async (e, type) => {
+    const fileList = Array.from(e.target.files || []);
+    if (fileList.length === 0) return;
+
+    if (type === "photo" && photos.length + fileList.length > 10) {
+      notify("Maximum 10 photos allowed per listing.");
+      return;
+    }
+    if (type === "video" && videos.length + fileList.length > 2) {
+      notify("Maximum 2 videos allowed per listing.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadProgress(`Uploading ${fileList.length} file(s)...`);
+      const uploaded = await uploadMedia(fileList);
+
+      const newPhotos = [];
+      const newVideos = [];
+
+      for (const f of uploaded) {
+        if (f.type === "video") {
+          newVideos.push(f);
+        } else {
+          newPhotos.push({
+            ...f,
+            isCover: photos.length === 0 && newPhotos.length === 0,
+          });
+        }
+      }
+
+      setPhotos((prev) => [...prev, ...newPhotos]);
+      setVideos((prev) => [...prev, ...newVideos]);
+      notify(`Added ${uploaded.length} new media file(s).`);
+    } catch (err) {
+      notify(err.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      setUploadProgress("");
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const removePhoto = (idx) => {
+    setPhotos((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length > 0 && !next.some((p) => p.isCover)) {
+        if (typeof next[0] === "object") next[0].isCover = true;
+      }
+      return next;
+    });
+  };
+
+  const removeVideo = (idx) => {
+    setVideos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const setCover = (idx) => {
+    setPhotos((prev) =>
+      prev.map((p, i) => {
+        if (typeof p === "string") return { url: p, isCover: i === idx };
+        return { ...p, isCover: i === idx };
+      })
+    );
+  };
+
+  return (
+    <Modal title={`Edit Room — ${room.title}`} onClose={onClose}>
+      <Field label="Listing Title *">
+        <input
+          value={form.title}
+          onChange={set("title")}
+          placeholder="e.g. 2 floor house (4 rooms + 2 bathroom)"
+          required
+        />
+      </Field>
+
+      <Field label="Monthly Rent (₹) *">
+        <input
+          type="number"
+          value={form.rent}
+          onChange={set("rent")}
+          placeholder="e.g. 50000"
+          required
+        />
+      </Field>
+
+      <Field label="Locality / Area Name *">
+        <input
+          value={form.locality}
+          onChange={set("locality")}
+          placeholder="e.g. Bhimtal, Nainital, etc."
+          required
+        />
+      </Field>
+
+      <Field label="Amenities (comma separated)">
+        <input
+          value={form.amenities}
+          onChange={set("amenities")}
+          placeholder="Attached Bath, WiFi, Balcony, CCTV"
+        />
+      </Field>
+
+      {/* GPS Location */}
+      <div style={{ marginTop: "12px", background: "var(--paper)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <strong style={{ fontSize: "0.85rem" }}>📍 Map Coordinates (Latitude / Longitude)</strong>
+          {userLocation && (
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+              onClick={() => {
+                setForm((f) => ({ ...f, latitude: userLocation.lat, longitude: userLocation.lng }));
+                notify("Updated coordinates to your current GPS position.");
+              }}
+            >
+              <LocateFixed size={12} style={{ marginRight: 4 }} /> Use My GPS
+            </button>
+          )}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          <input
+            type="number"
+            step="0.0001"
+            value={form.latitude}
+            onChange={(e) => setForm({ ...form, latitude: parseFloat(e.target.value) || 0 })}
+            placeholder="Latitude"
+          />
+          <input
+            type="number"
+            step="0.0001"
+            value={form.longitude}
+            onChange={(e) => setForm({ ...form, longitude: parseFloat(e.target.value) || 0 })}
+            placeholder="Longitude"
+          />
+        </div>
+      </div>
+
+      {/* Media Management */}
+      <div style={{ marginTop: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <strong style={{ fontSize: "0.9rem" }}>📸 Manage Photos ({photos.length}/10)</strong>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+              onClick={() => camPhotoRef.current?.click()}
+              disabled={photos.length >= 10 || uploading}
+            >
+              <Camera size={13} style={{ marginRight: 4 }} /> Camera
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+              onClick={() => galPhotoRef.current?.click()}
+              disabled={photos.length >= 10 || uploading}
+            >
+              <ImageIcon size={13} style={{ marginRight: 4 }} /> Add Photos
+            </button>
+          </div>
+        </div>
+
+        <input ref={camPhotoRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => handleFiles(e, "photo")} />
+        <input ref={galPhotoRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handleFiles(e, "photo")} />
+
+        {photos.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(85px, 1fr))", gap: "8px", marginTop: "8px" }}>
+            {photos.map((p, idx) => {
+              const url = typeof p === "string" ? p : p.url;
+              const isCover = typeof p === "object" ? p.isCover : idx === 0;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    position: "relative",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    border: isCover ? "2px solid #2563EB" : "1px solid var(--border)",
+                    height: "75px",
+                    background: "#000",
+                  }}
+                >
+                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(idx)}
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      background: "rgba(0,0,0,0.7)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "20px",
+                      height: "20px",
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                  {isCover ? (
+                    <span style={{ position: "absolute", bottom: 2, left: 2, background: "#2563EB", color: "white", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>
+                      Cover
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCover(idx)}
+                      style={{ position: "absolute", bottom: 2, left: 2, background: "rgba(0,0,0,0.6)", color: "white", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3, border: "none", cursor: "pointer" }}
+                    >
+                      Make Cover
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Videos Management */}
+      <div style={{ marginTop: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <strong style={{ fontSize: "0.9rem" }}>🎥 Manage Video Tours ({videos.length}/2)</strong>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+              onClick={() => camVideoRef.current?.click()}
+              disabled={videos.length >= 2 || uploading}
+            >
+              <Video size={13} style={{ marginRight: 4 }} /> Record
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+              onClick={() => galVideoRef.current?.click()}
+              disabled={videos.length >= 2 || uploading}
+            >
+              <Film size={13} style={{ marginRight: 4 }} /> Add Video
+            </button>
+          </div>
+        </div>
+
+        <input ref={camVideoRef} type="file" accept="video/*" capture="environment" style={{ display: "none" }} onChange={(e) => handleFiles(e, "video")} />
+        <input ref={galVideoRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => handleFiles(e, "video")} />
+
+        {videos.length > 0 && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+            {videos.map((v, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "var(--paper)",
+                  padding: "6px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                <Film size={14} color="#2563EB" />
+                <span style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {v.name || `Video Tour ${idx + 1}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeVideo(idx)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#EF4444", padding: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        className="btn primary wide"
+        disabled={!form.title || !form.rent || uploading}
+        onClick={() => onSave({ ...form, photos, videos })}
+        style={{ marginTop: 20 }}
+      >
+        {uploading ? uploadProgress || "Saving..." : "Save Listing Changes"}
       </button>
     </Modal>
   );

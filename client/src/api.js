@@ -26,7 +26,7 @@ export async function get(resource, params = null) {
   }
   const data = await res.json();
   // If response is wrapped in { success, data }
-  return Array.isArray(data) ? data : data.data || [];
+  return Array.isArray(data) ? data : data.data !== undefined ? data.data : data;
 }
 
 // Real Media Upload: Multipart form-data uploaded to persistent backend storage

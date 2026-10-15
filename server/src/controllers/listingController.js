@@ -137,13 +137,114 @@ export async function updateListing(req, res, next) {
       });
     }
 
-    // Apply updates
-    Object.assign(listing, req.body);
+    const body = req.body || {};
+
+    // Common fields
+    if (body.title !== undefined) listing.title = body.title.trim();
+    if (body.description !== undefined) listing.description = body.description.trim();
+    if (body.locality !== undefined) listing.locality = body.locality.trim();
+    if (body.status !== undefined) listing.status = body.status;
+
+    // Media
+    if (Array.isArray(body.photos)) listing.photos = body.photos;
+    if (Array.isArray(body.videos)) listing.videos = body.videos;
+
+    // Geo coordinates
+    if (body.latitude !== undefined || body.longitude !== undefined) {
+      const lat = body.latitude !== undefined ? Number(body.latitude) : listing.latitude;
+      const lng = body.longitude !== undefined ? Number(body.longitude) : listing.longitude;
+      listing.latitude = lat;
+      listing.longitude = lng;
+      listing.location = {
+        type: "Point",
+        coordinates: [lng, lat],
+      };
+    }
+
+    // Category-specific details
+    if (listing.type === "room") {
+      if (!listing.roomDetails) listing.roomDetails = {};
+      if (body.rent !== undefined) listing.roomDetails.rent = Number(body.rent);
+      if (body.period !== undefined) listing.roomDetails.period = body.period;
+      if (Array.isArray(body.amenities)) {
+        listing.roomDetails.amenities = body.amenities;
+      } else if (typeof body.amenities === "string") {
+        listing.roomDetails.amenities = body.amenities.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+      if (body.verified !== undefined && req.userRole === "admin") {
+        listing.roomDetails.verified = Boolean(body.verified);
+      }
+    } else if (listing.type === "vehicle") {
+      if (!listing.vehicleDetails) listing.vehicleDetails = {};
+      if (body.rate !== undefined || body.rentalPrice !== undefined) {
+        listing.vehicleDetails.rentalPrice = Number(body.rate ?? body.rentalPrice);
+      }
+      if (body.type !== undefined || body.vehicleType !== undefined) {
+        listing.vehicleDetails.vehicleType = body.type ?? body.vehicleType;
+      }
+      if (body.available !== undefined) listing.vehicleDetails.available = Boolean(body.available);
+    } else if (listing.type === "lost_found") {
+      if (!listing.lostFoundDetails) listing.lostFoundDetails = {};
+      if (body.kind !== undefined) listing.lostFoundDetails.kind = body.kind;
+      if (body.title !== undefined) listing.lostFoundDetails.itemName = body.title;
+    } else if (listing.type === "service") {
+      if (!listing.serviceDetails) listing.serviceDetails = {};
+      if (body.trade !== undefined || body.serviceCategory !== undefined) {
+        listing.serviceDetails.serviceCategory = body.trade ?? body.serviceCategory;
+      }
+      if (body.price !== undefined || body.pricingInfo !== undefined) {
+        listing.serviceDetails.pricingInfo = body.price ?? body.pricingInfo;
+      }
+      if (body.available !== undefined) listing.serviceDetails.available = Boolean(body.available);
+    } else if (listing.type === "alert") {
+      if (!listing.alertDetails) listing.alertDetails = {};
+      if (body.type !== undefined || body.alertType !== undefined) {
+        listing.alertDetails.alertType = body.type ?? body.alertType;
+      }
+    }
+
     await listing.save();
+
+    // Format web object so frontend can update state seamlessly
+    const webItem = {
+      id: listing._id.toString(),
+      _id: listing._id.toString(),
+      title: listing.title,
+      owner: listing.ownerName,
+      ownerId: listing.ownerId.toString(),
+      locality: listing.locality,
+      latitude: listing.latitude,
+      longitude: listing.longitude,
+      location: listing.location,
+      photos: listing.photos,
+      videos: listing.videos,
+      status: listing.status,
+      rent: listing.roomDetails?.rent,
+      amenities: listing.roomDetails?.amenities,
+      verified: listing.roomDetails?.verified,
+      name: listing.title,
+      type: listing.vehicleDetails?.vehicleType || listing.alertDetails?.alertType,
+      rate: listing.vehicleDetails?.rentalPrice,
+      available: listing.vehicleDetails?.available,
+      kind: listing.lostFoundDetails?.kind,
+      where: listing.locality,
+      by: listing.ownerName,
+      trade: listing.serviceDetails?.serviceCategory,
+      price: listing.serviceDetails?.pricingInfo,
+      rating: listing.serviceDetails?.rating,
+      jobs: listing.serviceDetails?.jobsCount,
+      helpers: listing.alertDetails?.helpersCount || 0,
+      description: listing.description,
+      createdAt: listing.createdAt,
+      updatedAt: listing.updatedAt,
+      km: 0.1,
+      ang: 30,
+    };
 
     return res.json({
       success: true,
-      data: listing.toFormattedJSON(),
+      data: webItem,
+      ...webItem,
     });
   } catch (error) {
     next(error);

@@ -68,9 +68,17 @@ export default function Services() {
         action={<button className="btn primary" onClick={() => setAdding(true)}><Plus size={16} /> Offer a service</button>}
       />
       <input className="search" placeholder="Search by name" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search services" />
-      <div className="chips big">
+      <div className="chips big" role="group" aria-label="Filter services by trade">
         {TRADES.map((t) => (
-          <button key={t} className={`chip ${trade === t ? "on" : ""}`} onClick={() => setTrade(t)}>{t}</button>
+          <button
+            key={t}
+            type="button"
+            className={`chip ${trade === t ? "on" : ""}`}
+            aria-pressed={trade === t}
+            onClick={() => setTrade(t)}
+          >
+            {t}
+          </button>
         ))}
       </div>
       <div className="list">
