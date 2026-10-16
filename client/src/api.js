@@ -146,3 +146,29 @@ export async function sendRequestMessage(requestId, text) {
   return data.data || [];
 }
 
+// DPDP Act 2023: Right to Erasure / Self-service account deletion
+export async function deleteAccount(password) {
+  const res = await fetch("/api/auth/me", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to delete account.");
+  }
+  return await res.json();
+}
+
+// DPDP Act 2023: Right to Access / Data Portability Export
+export async function exportData() {
+  const res = await fetch("/api/auth/me/export", {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to export data.");
+  }
+  return await res.json();
+}
+

@@ -43,3 +43,10 @@ Thumbs.db
 server/uploads/listings/*
 !server/uploads/listings/.gitkeep
 
+# Database backups & dumps (CRITICAL: Never commit database snapshots or personal data)
+server/backups/
+backups/
+*.dump
+*.bson
+*.json.gz
+

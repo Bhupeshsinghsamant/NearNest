@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bike, Eye, EyeOff, KeyRound, MapPinned, SearchCheck, Siren, Wrench, LocateFixed } from "lucide-react";
 import { useStore } from "../store.jsx";
-import { Field } from "../components/ui.jsx";
+import { Field, Modal } from "../components/ui.jsx";
+import PrivacyPolicy from "./PrivacyPolicy.jsx";
 
 const POINTS = [
   { icon: KeyRound, text: "Find a room from owners who actually reply" },
@@ -20,6 +21,8 @@ export default function Auth({ mode }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const detectLocation = () => {
@@ -70,6 +73,7 @@ export default function Auth({ mode }) {
     if (isSignup && !form.area.trim()) return "Tell us your area so we can show things nearby.";
     if (form.password.length < 6) return "Password must be at least 6 characters.";
     if (isSignup && form.password !== form.confirm) return "Passwords don't match.";
+    if (isSignup && !agreed) return "Please review and acknowledge the Privacy Policy under DPDP Act 2023.";
     return "";
   };
 
@@ -187,6 +191,37 @@ export default function Auth({ mode }) {
             </Field>
           )}
 
+          {isSignup && (
+            <div style={{ marginTop: 12, marginBottom: 8, fontSize: "0.82rem", display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <input
+                type="checkbox"
+                id="dpdpConsent"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                style={{ width: "auto", marginTop: 3, accentColor: "#2563EB", cursor: "pointer" }}
+              />
+              <label htmlFor="dpdpConsent" style={{ color: "var(--mute)", lineHeight: 1.4, cursor: "pointer" }}>
+                I agree to the Terms of Service and acknowledge the{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowPrivacyModal(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#2563EB",
+                    padding: 0,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    fontSize: "inherit",
+                    fontWeight: 600,
+                  }}
+                >
+                  NearNest Privacy Notice (DPDP Act, 2023)
+                </button>
+              </label>
+            </div>
+          )}
+
           {error && <p className="form-error" role="alert">{error}</p>}
 
           <button className="btn primary wide" type="submit" disabled={busy}>
@@ -198,6 +233,12 @@ export default function Auth({ mode }) {
             <Link to={isSignup ? "/login" : "/signup"}>{isSignup ? "Log in" : "Create an account"}</Link>
           </p>
         </form>
+
+        {showPrivacyModal && (
+          <Modal title="NearNest Privacy Notice" onClose={() => setShowPrivacyModal(false)}>
+            <PrivacyPolicy onBack={() => setShowPrivacyModal(false)} />
+          </Modal>
+        )}
       </main>
     </div>
   );

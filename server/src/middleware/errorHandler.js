@@ -1,5 +1,5 @@
 export function errorHandler(err, req, res, next) {
-  console.error("Unhandled Error:", err);
+  console.error(`💥 [API Exception] ${err.name || "Error"}: ${err.message}`);
 
   // Mongoose duplicate key error (e.g. unique email)
   if (err.code === 11000) {

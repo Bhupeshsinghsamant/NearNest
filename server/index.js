@@ -14,8 +14,10 @@ import listingRoutes from "./src/routes/listingRoutes.js";
 import requestRoutes from "./src/routes/requestRoutes.js";
 import uploadRoutes from "./src/routes/uploadRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
+import reportRoutes from "./src/routes/reportRoutes.js";
 import { updateListing, deleteListing } from "./src/controllers/listingController.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
+import { requestLogger } from "./src/middleware/logger.js";
 import { requireAuth, requireAdmin } from "./src/middleware/auth.js";
 import { Listing } from "./src/models/Listing.js";
 import { calculateHaversineDistanceKm, resolveLocalityCoordinates } from "./src/utils/geo.js";
@@ -23,6 +25,7 @@ import { calculateHaversineDistanceKm, resolveLocalityCoordinates } from "./src/
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(requestLogger);
 
 // Serve persistent media uploads statically
 app.use("/uploads", express.static(path.resolve(__dirname, "uploads")));
@@ -32,14 +35,29 @@ connectDB().catch((err) => {
   console.warn("⚠️  Server started without database connection:", err.message);
 });
 
-// Health check endpoint
+// Production Observability: Health check endpoint
 app.get("/api/v1/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "ok",
+  const isDbConnected = Listing.db?.readyState === 1;
+  const memory = process.memoryUsage();
+  const uptimeSeconds = Math.round(process.uptime());
+
+  const health = {
+    success: isDbConnected,
+    status: isDbConnected ? "ok" : "degraded",
+    environment: process.env.NODE_ENV || "development",
     timestamp: new Date().toISOString(),
-    database: Listing.db?.readyState === 1 ? "connected" : "disconnected",
-  });
+    uptimeSeconds,
+    database: {
+      status: isDbConnected ? "connected" : "disconnected",
+      cluster: "MongoDB Atlas M0",
+    },
+    system: {
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+    },
+  };
+
+  res.status(isDbConnected ? 200 : 503).json(health);
 });
 
 // Modern Mobile API v1 Routes
@@ -55,10 +73,18 @@ app.use("/api/auth", authRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/v1/reports", reportRoutes);
 
-// Flags (Admin only, empty array by default unless real flags exist)
-app.get("/api/flags", requireAuth, requireAdmin, (req, res) => {
-  res.json([]);
+// Flags (Admin only, returns pending community reports)
+app.get("/api/flags", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { Report } = await import("./src/models/Report.js");
+    const reports = await Report.find({ status: "pending" }).lean();
+    res.json(reports);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Web Client: GET /api/:resource (rooms | rentals | lostfound | services)

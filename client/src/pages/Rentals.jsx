@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Bike, Car, LocateFixed, Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Bike, Car, LocateFixed, Plus, Trash2, CheckCircle2, Flag } from "lucide-react";
 import { Empty, Field, Modal, PageHead, Segmented } from "../components/ui.jsx";
+import ReportModal from "../components/ReportModal.jsx";
 import { useResource, useStore } from "../store.jsx";
 import { post, del } from "../api.js";
 
@@ -12,6 +13,7 @@ export default function Rentals() {
   const [type, setType] = useState("All");
   const [booking, setBooking] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [reportingVehicle, setReportingVehicle] = useState(null);
 
   const list = rentals.filter((r) => (radius >= 9999 || r.km == null || r.km <= radius) && (type === "All" || r.type === type));
 
@@ -79,17 +81,28 @@ export default function Rentals() {
               </div>
               <p className="meta">{r.type} · {r.owner} {r.km != null ? `· ${r.km} km away` : ""}</p>
               <div className="card-actions">
+                {!isOwner && (
+                  <button
+                    className="btn"
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", color: "var(--mute)", borderColor: "var(--line)" }}
+                    title="Report this vehicle listing"
+                    onClick={() => setReportingVehicle(r)}
+                  >
+                    <Flag size={12} style={{ marginRight: 3 }} /> Report
+                  </button>
+                )}
+
                 {isOwner ? (
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginLeft: "auto" }}>
                     <span className="status ok"><CheckCircle2 size={13} style={{ marginRight: 4 }} /> Your vehicle</span>
                     <button className="btn" style={{ borderColor: "#ef4444", color: "#ef4444" }} onClick={() => deleteVehicle(vId)}>
                       <Trash2 size={13} style={{ marginRight: 4 }} /> Delete
                     </button>
                   </div>
                 ) : r.available ? (
-                  <button className="btn" onClick={() => setBooking(r)}>Request</button>
+                  <button className="btn" style={{ marginLeft: "auto" }} onClick={() => setBooking(r)}>Request</button>
                 ) : (
-                  <span className="status bad">Out right now</span>
+                  <span className="status bad" style={{ marginLeft: "auto" }}>Out right now</span>
                 )}
               </div>
             </article>
@@ -110,6 +123,14 @@ export default function Rentals() {
           onClose={() => setAdding(false)}
           onSave={addVehicle}
           defaultLocality={user?.area}
+        />
+      )}
+
+      {reportingVehicle && (
+        <ReportModal
+          target={reportingVehicle}
+          targetType="listing"
+          onClose={() => setReportingVehicle(null)}
         />
       )}
     </>

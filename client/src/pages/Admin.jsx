@@ -28,7 +28,7 @@ export default function Admin() {
   const { notify, user } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const paramTab = searchParams.get("tab");
-  const validTabs = ["overview", "listings", "requests", "users"];
+  const validTabs = ["overview", "listings", "requests", "users", "reports"];
   const [tab, setTab] = useState(validTabs.includes(paramTab) ? paramTab : "overview");
 
   useEffect(() => {
@@ -121,6 +121,51 @@ export default function Admin() {
     }
   };
 
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reportStatusFilter, setReportStatusFilter] = useState("all");
+
+  // Load All Community Reports
+  const fetchReports = async () => {
+    try {
+      setLoadingReports(true);
+      const res = await get("reports/admin", {
+        status: reportStatusFilter !== "all" ? reportStatusFilter : undefined,
+      });
+      setReports(Array.isArray(res) ? res : res.data || []);
+    } catch (err) {
+      console.error("Failed to load reports:", err);
+      notify("Failed to load abuse reports.");
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const handleModerateReport = async (report, action) => {
+    const promptMsg =
+      action === "dismiss"
+        ? "Dismiss this report as unfounded?"
+        : action === "hide_listing"
+        ? `Hide listing "${report.targetTitle}" from search results?`
+        : action === "restore_listing"
+        ? `Restore listing "${report.targetTitle}" to active status?`
+        : action === "delete_listing"
+        ? `Permanently delete listing "${report.targetTitle}" and purge files?`
+        : `Ban the owner of "${report.targetTitle}" from platform?`;
+
+    if (!window.confirm(`MODERATION ACTION: ${promptMsg}`)) return;
+
+    try {
+      const res = await patch("reports/admin", report.id || report._id, { action });
+      notify(res.message || "Moderation action recorded.");
+      fetchReports();
+      fetchListings();
+      fetchMetrics();
+    } catch (err) {
+      notify(err.message || "Moderation action failed.");
+    }
+  };
+
   useEffect(() => {
     fetchMetrics();
   }, []);
@@ -130,7 +175,8 @@ export default function Admin() {
     else if (tab === "listings") fetchListings();
     else if (tab === "requests") fetchRequests();
     else if (tab === "users") fetchUsers();
-  }, [tab, listingTypeFilter, ownerFilter]);
+    else if (tab === "reports") fetchReports();
+  }, [tab, listingTypeFilter, ownerFilter, reportStatusFilter]);
 
   // Admin toggle verify listing
   const handleToggleVerifyListing = async (listing) => {
@@ -331,6 +377,7 @@ export default function Admin() {
           { value: "listings", label: `All Listings ${listings.length ? `(${listings.length})` : ""}` },
           { value: "requests", label: `Inquiries & Chats ${requests.length ? `(${requests.length})` : ""}` },
           { value: "users", label: `User Accounts ${users.length ? `(${users.length})` : ""}` },
+          { value: "reports", label: `Abuse & Reports ${reports.length ? `(${reports.length})` : ""}` },
         ]}
       />
 
@@ -982,6 +1029,158 @@ export default function Admin() {
                         </>
                       )}
                     </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. ABUSE & COMMUNITY REPORTS TAB */}
+      {tab === "reports" && (
+        <div>
+          {/* Status Filter Chips */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--mute)" }}>Status:</span>
+            {["all", "pending", "action_taken", "dismissed"].map((st) => (
+              <button
+                key={st}
+                className={`btn ${reportStatusFilter === st ? "primary" : ""}`}
+                style={{ fontSize: "0.8rem", padding: "4px 12px", textTransform: "capitalize" }}
+                onClick={() => setReportStatusFilter(st)}
+              >
+                {st.replace("_", " ")}
+              </button>
+            ))}
+            <button
+              className="btn"
+              style={{ marginLeft: "auto", fontSize: "0.8rem", padding: "4px 10px", display: "flex", alignItems: "center", gap: 4 }}
+              onClick={fetchReports}
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
+          </div>
+
+          {loadingReports && <p style={{ color: "var(--mute)" }}>Loading community reports from database...</p>}
+
+          {!loadingReports && reports.length === 0 && (
+            <Empty text="No reports found matching the selected filter. Community is healthy." />
+          )}
+
+          {!loadingReports && reports.length > 0 && (
+            <div style={{ display: "grid", gap: "14px" }}>
+              {reports.map((r) => {
+                const isPending = r.status === "pending";
+                const isActionTaken = r.status === "action_taken";
+
+                return (
+                  <article
+                    key={r._id || r.id}
+                    className="card"
+                    style={{
+                      borderLeft: isPending ? "4px solid #F59E0B" : isActionTaken ? "4px solid #EF4444" : "4px solid #10B981",
+                      padding: "16px 18px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                      <div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              background: "#FEF2F2",
+                              color: "#DC2626",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            🚩 {r.reason}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              background: isPending ? "#FEF3C7" : isActionTaken ? "#FEE2E2" : "#DCFCE7",
+                              color: isPending ? "#92400E" : isActionTaken ? "#991B1B" : "#166534",
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {r.status.replace("_", " ")}
+                          </span>
+                        </div>
+                        <strong style={{ fontSize: "1.05rem" }}>
+                          Target: {r.targetTitle || `ID: ${r.targetId}`} ({r.targetType})
+                        </strong>
+                        <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--mute)" }}>
+                          Reported by: <strong>{r.reporterName || "Neighbor"}</strong> · {new Date(r.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {isPending && (
+                          <>
+                            <button
+                              className="btn"
+                              style={{ fontSize: "0.78rem", padding: "4px 10px" }}
+                              onClick={() => handleModerateReport(r, "dismiss")}
+                            >
+                              Dismiss (False)
+                            </button>
+                            {r.targetType === "listing" && (
+                              <>
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: "0.78rem", padding: "4px 10px", borderColor: "#F59E0B", color: "#D97706" }}
+                                  onClick={() => handleModerateReport(r, "hide_listing")}
+                                >
+                                  Hide Listing
+                                </button>
+                                <button
+                                  className="btn alert"
+                                  style={{ fontSize: "0.78rem", padding: "4px 10px" }}
+                                  onClick={() => handleModerateReport(r, "delete_listing")}
+                                >
+                                  Delete Listing
+                                </button>
+                              </>
+                            )}
+                            <button
+                              className="btn"
+                              style={{ fontSize: "0.78rem", padding: "4px 10px", borderColor: "#DC2626", color: "#DC2626" }}
+                              onClick={() => handleModerateReport(r, "ban_user")}
+                            >
+                              Ban User
+                            </button>
+                          </>
+                        )}
+                        {isActionTaken && r.moderationAction === "listing_hidden" && (
+                          <button
+                            className="btn primary"
+                            style={{ fontSize: "0.78rem", padding: "4px 10px" }}
+                            onClick={() => handleModerateReport(r, "restore_listing")}
+                          >
+                            Restore Listing
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {r.details && (
+                      <div style={{ marginTop: 10, background: "var(--paper)", padding: "8px 12px", borderRadius: 6, fontSize: "0.85rem" }}>
+                        <strong>Reporter Details:</strong> "{r.details}"
+                      </div>
+                    )}
+
+                    {r.moderationNotes && (
+                      <div style={{ marginTop: 6, fontSize: "0.8rem", color: "#166534" }}>
+                        🛡️ <strong>Outcome:</strong> {r.moderationNotes} {r.moderatorName && `(by ${r.moderatorName})`}
+                      </div>
+                    )}
                   </article>
                 );
               })}

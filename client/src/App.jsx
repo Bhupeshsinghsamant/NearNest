@@ -16,9 +16,14 @@ import {
   ShieldCheck,
   LocateFixed,
   MapPin,
+  AlertTriangle,
+  Download,
+  Trash2,
+  Settings,
 } from "lucide-react";
 import { useStore } from "./store.jsx";
 import { Modal, Field } from "./components/ui.jsx";
+import { deleteAccount, exportData } from "./api.js";
 import Home from "./pages/Home.jsx";
 import Rooms from "./pages/Rooms.jsx";
 import Messages from "./pages/Messages.jsx";
@@ -28,6 +33,7 @@ import Services from "./pages/Services.jsx";
 import Alerts from "./pages/Alerts.jsx";
 import Admin from "./pages/Admin.jsx";
 import Auth from "./pages/Auth.jsx";
+import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 
 const USER_NAV = [
   { to: "/", label: "Nearby", icon: HomeIcon, end: true },
@@ -44,6 +50,7 @@ const ADMIN_NAV = [
   { to: "/admin?tab=users", label: "Users & Safety", icon: Users },
   { to: "/admin?tab=listings", label: "Listings Quality", icon: Layers },
   { to: "/admin?tab=requests", label: "Inquiries Audit", icon: MessageSquare },
+  { to: "/admin?tab=reports", label: "Abuse & Reports", icon: AlertTriangle },
   { to: "/alerts", label: "Emergency Alerts", icon: Siren },
 ];
 
@@ -52,6 +59,12 @@ export default function App() {
   const [showLocModal, setShowLocModal] = useState(false);
   const [locInput, setLocInput] = useState("");
   const [locBusy, setLocBusy] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [deletePass, setDeletePass] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
   const location = useLocation();
   const { pathname, search } = location;
   const section = pathname.split("/")[1] || "home";
@@ -68,6 +81,48 @@ export default function App() {
   const isAdmin = user.role === "admin";
   const initials = user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const navItems = isAdmin ? ADMIN_NAV : USER_NAV;
+
+  const handleExportData = async () => {
+    try {
+      setExportBusy(true);
+      const res = await exportData();
+      const blob = new Blob([JSON.stringify(res.data || res, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nearnest_my_data_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      notify("Personal data exported successfully in compliance with DPDP Act 2023.");
+    } catch (err) {
+      notify(err.message || "Failed to export data.");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (!deletePass) {
+      setDeleteErr("Please enter your current password.");
+      return;
+    }
+    if (!window.confirm("FINAL CONFIRMATION: Are you sure you want to permanently delete your account? All your listings, uploaded photos, and chat inquiries will be irreversibly erased.")) {
+      return;
+    }
+
+    try {
+      setDeleteBusy(true);
+      setDeleteErr("");
+      await deleteAccount(deletePass);
+      notify("Your account and all associated personal data have been permanently erased.");
+      logout();
+    } catch (err) {
+      setDeleteErr(err.message || "Failed to delete account.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   const handleApplyLocation = async (e) => {
     e?.preventDefault();
@@ -152,9 +207,19 @@ export default function App() {
               {isAdmin ? "Platform Guardian" : (user.area || user.email)}
             </small>
           </div>
-          <button className="icon-btn" onClick={logout} aria-label="Log out" title="Log out">
-            <LogOut size={18} />
-          </button>
+          <div style={{ display: "flex", gap: 2 }}>
+            <button
+              className="icon-btn"
+              onClick={() => setShowSettingsModal(true)}
+              aria-label="Account Settings & Data Rights"
+              title="Account Settings & DPDP Privacy Rights"
+            >
+              <ShieldCheck size={18} />
+            </button>
+            <button className="icon-btn" onClick={logout} aria-label="Log out" title="Log out">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
 
         {isAdmin ? (
@@ -354,6 +419,7 @@ export default function App() {
           <Routes>
             <Route path="/admin" element={<Admin />} />
             <Route path="/alerts" element={<Alerts />} />
+            <Route path="/privacy" element={<PrivacyPolicy onBack={() => window.history.back()} />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         ) : (
@@ -365,11 +431,87 @@ export default function App() {
             <Route path="/rentals" element={<Rentals />} />
             <Route path="/services" element={<Services />} />
             <Route path="/alerts" element={<Alerts />} />
+            <Route path="/privacy" element={<PrivacyPolicy onBack={() => window.history.back()} />} />
             <Route path="/admin" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         )}
       </main>
+
+      {/* Account Settings & DPDP Privacy Rights Modal */}
+      {showSettingsModal && (
+        <Modal title="Account & Data Privacy Rights" onClose={() => setShowSettingsModal(false)}>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ background: "var(--paper)", padding: "12px 14px", borderRadius: 8, fontSize: "0.88rem" }}>
+              <div><strong>Name:</strong> {user.name}</div>
+              <div><strong>Email:</strong> {user.email}</div>
+              <div><strong>Phone:</strong> {user.phone || "Not specified (Kept private)"}</div>
+              <div><strong>Locality:</strong> {user.area || "Not specified"}</div>
+              <div><strong>Role:</strong> {isAdmin ? "Master Administrator" : "Community Member"}</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                className="btn"
+                style={{ flex: 1, fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                onClick={handleExportData}
+                disabled={exportBusy}
+              >
+                <Download size={15} /> {exportBusy ? "Exporting..." : "Export My Data (JSON)"}
+              </button>
+              <button
+                className="btn"
+                style={{ flex: 1, fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setShowPrivacyModal(true);
+                }}
+              >
+                <ShieldCheck size={15} /> Privacy Notice (DPDP)
+              </button>
+            </div>
+
+            {!isAdmin && (
+              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginTop: 4 }}>
+                <strong style={{ color: "#DC2626", fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Trash2 size={16} /> Danger Zone: Permanent Account Deletion
+                </strong>
+                <p style={{ margin: "4px 0 10px", fontSize: "0.8rem", color: "var(--mute)" }}>
+                  Under DPDP Act 2023, you can permanently delete your account. This permanently wipes your user profile,
+                  all active room/vehicle listings, uploaded photos, and chat inquiries.
+                </p>
+                <form onSubmit={handleDeleteAccount}>
+                  <Field label="Enter password to confirm">
+                    <input
+                      type="password"
+                      placeholder="Your current password"
+                      value={deletePass}
+                      onChange={(e) => setDeletePass(e.target.value)}
+                      style={{ fontSize: "0.85rem" }}
+                    />
+                  </Field>
+                  {deleteErr && <p className="form-error" role="alert">{deleteErr}</p>}
+                  <button
+                    type="submit"
+                    className="btn alert wide"
+                    style={{ fontSize: "0.85rem", marginTop: 8 }}
+                    disabled={deleteBusy || !deletePass}
+                  >
+                    {deleteBusy ? "Erasing Data..." : "Permanently Delete My Account & Erase All Data"}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Privacy Notice Modal */}
+      {showPrivacyModal && (
+        <Modal title="NearNest Privacy Notice" onClose={() => setShowPrivacyModal(false)}>
+          <PrivacyPolicy onBack={() => setShowPrivacyModal(false)} />
+        </Modal>
+      )}
     </div>
   );
 }

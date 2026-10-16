@@ -22,8 +22,10 @@ import {
   Clock,
   Check,
   Pencil,
+  Flag,
 } from "lucide-react";
 import MapView from "../components/MapView.jsx";
+import ReportModal from "../components/ReportModal.jsx";
 import { Empty, Field, Modal, PageHead, Segmented } from "../components/ui.jsx";
 import { useResource, useStore } from "../store.jsx";
 import { post, get, patch, del, uploadMedia, getRequestMessages, sendRequestMessage } from "../api.js";
@@ -41,6 +43,7 @@ export default function Rooms() {
   const [viewingMedia, setViewingMedia] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
+  const [reportingRoom, setReportingRoom] = useState(null);
 
   // Fetch real seller inbox from MongoDB Atlas
   const fetchInbox = async () => {
@@ -333,10 +336,17 @@ export default function Rooms() {
                   </div>
                   <p className="meta">
                     {r.owner} · {r.locality || "Local Area"} {r.km != null ? `· ${r.km} km away` : ""}
-                    {r.verified && <span className="ok"><BadgeCheck size={14} /> Verified owner</span>}
+                    {r.verified && (
+                      <span className="ok" title="Phone & Profile details verified by platform">
+                        <BadgeCheck size={14} /> Phone Verified
+                      </span>
+                    )}
                   </p>
                   <div className="chips">
                     {(r.amenities || []).map((a) => <span key={a} className="chip">{a}</span>)}
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span>⚠️ Physical inspection not conducted by platform. Never pay advance/token online before viewing.</span>
                   </div>
 
                   {/* Accepted Contact Banner if Owner accepted request */}
@@ -406,6 +416,20 @@ export default function Rooms() {
                         }}
                       >
                         <Eye size={13} style={{ marginRight: 4 }} /> View Media ({photos.length + videos.length})
+                      </button>
+                    )}
+
+                    {!isOwner && (
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.75rem", color: "var(--mute)", borderColor: "var(--line)" }}
+                        title="Report this listing to NearNest moderators"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReportingRoom(r);
+                        }}
+                      >
+                        <Flag size={12} style={{ marginRight: 3 }} /> Report
                       </button>
                     )}
 
@@ -693,6 +717,15 @@ export default function Rooms() {
             if (mode === "sent") fetchSentRequests();
             if (mode === "owner") fetchInbox();
           }}
+        />
+      )}
+
+      {/* Community Abuse & Scam Report Modal */}
+      {reportingRoom && (
+        <ReportModal
+          target={reportingRoom}
+          targetType="listing"
+          onClose={() => setReportingRoom(null)}
         />
       )}
     </>

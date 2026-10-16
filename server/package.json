@@ -12,7 +12,10 @@
     "test:admin": "node --env-file=.env test-admin-edit.js",
     "test:messages": "node --env-file=.env test-messages-hub.js",
     "seed": "node src/seed.js",
-    "verify:db": "node verify-db.js"
+    "verify:db": "node verify-db.js",
+    "backup": "node scripts/backup.mjs",
+    "restore:test": "node scripts/restore-test.mjs",
+    "test:additions": "node test-prod-additions.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

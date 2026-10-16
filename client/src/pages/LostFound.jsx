@@ -16,8 +16,10 @@ import {
   Gift,
   HelpCircle,
   Eye,
+  Flag,
 } from "lucide-react";
 import { Empty, Field, Modal, PageHead, Segmented, ago } from "../components/ui.jsx";
+import ReportModal from "../components/ReportModal.jsx";
 import { useResource, useStore } from "../store.jsx";
 import { post, del, uploadMedia } from "../api.js";
 
@@ -47,6 +49,7 @@ export default function LostFound() {
   const [claimMessage, setClaimMessage] = useState("");
   const [posting, setPosting] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [reportingItem, setReportingItem] = useState(null);
 
   // Sync tab if URL changes
   useEffect(() => {
@@ -350,15 +353,25 @@ export default function LostFound() {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        className="btn primary"
-                        onClick={() => {
-                          setClaiming(i);
-                          setClaimMessage("");
-                        }}
-                      >
-                        {tab === "lost" ? "🤝 I found this item" : "🙋 This is mine (Claim)"}
-                      </button>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          className="btn"
+                          style={{ padding: "4px 8px", fontSize: "0.75rem", color: "var(--mute)", borderColor: "var(--line)" }}
+                          title="Report suspicious or fake post"
+                          onClick={() => setReportingItem(i)}
+                        >
+                          <Flag size={12} style={{ marginRight: 3 }} /> Report
+                        </button>
+                        <button
+                          className="btn primary"
+                          onClick={() => {
+                            setClaiming(i);
+                            setClaimMessage("");
+                          }}
+                        >
+                          {tab === "lost" ? "🤝 I found this item" : "🙋 This is mine (Claim)"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -417,6 +430,15 @@ export default function LostFound() {
           onClose={() => setPosting(false)}
           onSave={submitPost}
           notify={notify}
+        />
+      )}
+
+      {/* Community Abuse & Scam Report Modal */}
+      {reportingItem && (
+        <ReportModal
+          target={reportingItem}
+          targetType="listing"
+          onClose={() => setReportingItem(null)}
         />
       )}
     </>

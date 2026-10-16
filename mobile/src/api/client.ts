@@ -5,7 +5,15 @@ import * as SecureStore from "expo-secure-store";
 const TOKEN_KEY = "lc_auth_token";
 
 export function getBaseUrl(): string {
-  // Try to determine the host IP from Expo bundler automatically
+  // Support explicit production environment URL with HTTPS enforcement
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    if (process.env.NODE_ENV === "production" && !envUrl.startsWith("https://")) {
+      console.warn("⚠️ [OWASP MASVS Network] Production mobile builds must connect via HTTPS.");
+    }
+    return envUrl;
+  }
+  // Try to determine the host IP from Expo bundler automatically in development
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const ip = hostUri.split(":")[0];
