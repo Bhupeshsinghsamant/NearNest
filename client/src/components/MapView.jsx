@@ -30,12 +30,13 @@ export default function MapView({
   const { userLocation } = useStore();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const userMarkerRef = useRef(null);
   const circleRef = useRef(null);
   const markersLayerRef = useRef(null);
   const pickMarkerRef = useRef(null);
 
-  const centerLat = userLocation?.lat || 28.6139;
-  const centerLng = userLocation?.lng || 77.2090;
+  const centerLat = userLocation?.lat || 29.3500;
+  const centerLng = userLocation?.lng || 79.5500;
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -68,9 +69,10 @@ export default function MapView({
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
-      L.marker([centerLat, centerLng], { icon: userIcon, zIndexOffset: 1000 })
+      const userMarker = L.marker([centerLat, centerLng], { icon: userIcon, zIndexOffset: 1000 })
         .addTo(map)
-        .bindTooltip("Your Location", { permanent: false, direction: "top" });
+        .bindTooltip(userLocation?.area || "Center Location", { permanent: false, direction: "top" });
+      userMarkerRef.current = userMarker;
 
       // User distance radius circle
       const circle = L.circle([centerLat, centerLng], {
@@ -126,18 +128,26 @@ export default function MapView({
 
   // Update center & radius circle when user changes distance or location
   useEffect(() => {
-    if (mapInstanceRef.current && circleRef.current) {
-      circleRef.current.setLatLng([centerLat, centerLng]);
-      circleRef.current.setRadius((radius || 10) * 1000);
+    if (mapInstanceRef.current) {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setLatLng([centerLat, centerLng]);
+        userMarkerRef.current.setTooltipContent(userLocation?.area || "Center Location");
+      }
 
-      // Fit bounds to circle with some padding
+      if (circleRef.current) {
+        circleRef.current.setLatLng([centerLat, centerLng]);
+        circleRef.current.setRadius((radius || 10) * 1000);
+      }
+
+      // Smoothly pan/zoom to the newly selected center location
       try {
-        const bounds = circleRef.current.getBounds();
-        mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20], maxZoom: 14 });
+        const targetZoom = radius <= 5 ? 13 : radius <= 20 ? 11 : radius <= 50 ? 10 : 8;
+        mapInstanceRef.current.setView([centerLat, centerLng], targetZoom);
       } catch {}
+
       mapInstanceRef.current.invalidateSize();
     }
-  }, [centerLat, centerLng, radius]);
+  }, [centerLat, centerLng, radius, userLocation?.area]);
 
   // Robust container resize observer to prevent cut-off / grey tiles
   useEffect(() => {

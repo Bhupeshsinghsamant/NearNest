@@ -48,7 +48,7 @@ const ADMIN_NAV = [
 ];
 
 export default function App() {
-  const { radius, setRadius, user, logout, unreadCount, userLocation, setUserLocation, setManualArea, notify } = useStore();
+  const { radius, setRadius, user, logout, unreadCount, userLocation, setUserLocation, setManualArea, useDeviceGps, notify } = useStore();
   const [showLocModal, setShowLocModal] = useState(false);
   const [locInput, setLocInput] = useState("");
   const [locBusy, setLocBusy] = useState(false);
@@ -305,20 +305,8 @@ export default function App() {
                   type="button"
                   className="btn"
                   onClick={() => {
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          setUserLocation({
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude,
-                            area: `GPS (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`,
-                          });
-                          notify("Centered on exact device GPS!");
-                          setShowLocModal(false);
-                        },
-                        () => notify("Could not fetch GPS permission.")
-                      );
-                    }
+                    useDeviceGps();
+                    setShowLocModal(false);
                   }}
                   title="Detect Device GPS"
                 >

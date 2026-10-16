@@ -24,36 +24,17 @@ export function StoreProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [session, setSession] = useState(readSession);
 
-  // Auto-detect browser location once if available, or sync user registered area
+  // Sync location with registered user area on mount/login
   useEffect(() => {
     const saved = localStorage.getItem("lc_coords");
-    if (!saved && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const areaName = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-          const coords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            area: areaName || "Current Location",
-          };
+    if (!saved && session?.user?.area) {
+      geocodeLocality(session.user.area).then((geo) => {
+        if (geo) {
+          const coords = { lat: geo.lat, lng: geo.lng, area: geo.name || session.user.area, mode: "manual" };
           setUserLocation(coords);
-          try {
-            localStorage.setItem("lc_coords", JSON.stringify(coords));
-          } catch {}
-        },
-        async () => {
-          // If GPS denied, resolve user's profile area if available
-          if (session?.user?.area) {
-            const geo = await geocodeLocality(session.user.area);
-            if (geo) {
-              const coords = { lat: geo.lat, lng: geo.lng, area: session.user.area };
-              setUserLocation(coords);
-              try { localStorage.setItem("lc_coords", JSON.stringify(coords)); } catch {}
-            }
-          }
-        },
-        { timeout: 8000 }
-      );
+          try { localStorage.setItem("lc_coords", JSON.stringify(coords)); } catch {}
+        }
+      });
     }
   }, [session?.user?.area]);
 
@@ -125,25 +106,61 @@ export function StoreProvider({ children }) {
     }
   };
 
+  const useDeviceGps = () => {
+    if (!navigator.geolocation) {
+      notify("Geolocation is not supported by your browser.");
+      return;
+    }
+    notify("Detecting your physical device GPS...");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const areaName = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        const coords = {
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+          area: areaName ? `GPS: ${areaName}` : `Device GPS (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`,
+          mode: "gps",
+        };
+        setUserLocation(coords);
+        try {
+          localStorage.setItem("lc_coords", JSON.stringify(coords));
+        } catch {}
+        notify(`Centered on device GPS (${coords.area})`);
+      },
+      () => {
+        notify("GPS permission denied or unavailable.");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   const notify = useCallback((message) => {
     setToast(message);
     clearTimeout(window.__toastTimer);
     window.__toastTimer = setTimeout(() => setToast(null), 3200);
   }, []);
 
-  const start = (data, message) => {
+  const start = async (data, message) => {
     try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* storage blocked */ }
     setSession(data);
+    if (data.user?.area) {
+      const geo = await geocodeLocality(data.user.area);
+      if (geo) {
+        const coords = { lat: geo.lat, lng: geo.lng, area: geo.name || data.user.area, mode: "manual" };
+        setUserLocation(coords);
+        try { localStorage.setItem("lc_coords", JSON.stringify(coords)); } catch {}
+      }
+    }
     notify(message);
   };
   const first = (u) => u.name.split(" ")[0];
   const login = async (creds) => {
     const data = await apiLogin(creds);
-    start(data, `Welcome back, ${first(data.user)}.`);
+    await start(data, `Welcome back, ${first(data.user)}.`);
   };
   const signup = async (info) => {
     const data = await apiSignup(info);
-    start(data, `Account created. Welcome, ${first(data.user)}.`);
+    await start(data, `Account created. Welcome, ${first(data.user)}.`);
   };
   const logout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
@@ -159,6 +176,7 @@ export function StoreProvider({ children }) {
         userLocation,
         setUserLocation: updateLocation,
         setManualArea,
+        useDeviceGps,
         notify,
         user: session?.user || null,
         unreadCount,
