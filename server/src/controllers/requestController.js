@@ -286,6 +286,10 @@ export async function getConversations(req, res, next) {
         ? (r.buyerLastReadAt || new Date(0))
         : (r.sellerLastReadAt || new Date(0));
 
+      const partnerLastReadAt = isBuyer
+        ? (r.sellerLastReadAt || null)
+        : (r.buyerLastReadAt || null);
+
       const messages = Array.isArray(r.messages) ? r.messages : [];
       const unreadCount = messages.filter(
         (m) => m.senderId?.toString() !== req.userId && new Date(m.createdAt) > new Date(lastReadAt)
