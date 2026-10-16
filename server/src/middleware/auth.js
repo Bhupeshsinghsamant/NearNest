@@ -1,7 +1,15 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16)) {
+  throw new Error("🛑 FATAL SECURITY CONFIGURATION: Strong JWT_SECRET (min 16 chars) is required in production!");
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_dev_secret_localconnect_2026";
+if (!isProduction && !process.env.JWT_SECRET) {
+  console.warn("⚠️  [Security Warning] Running with development fallback JWT secret. Set JWT_SECRET in .env for production.");
+}
 
 export function signToken(payload, expiresIn = "7d") {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });

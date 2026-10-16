@@ -18,7 +18,7 @@ import { updateListing, deleteListing } from "./src/controllers/listingControlle
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { requireAuth, requireAdmin } from "./src/middleware/auth.js";
 import { Listing } from "./src/models/Listing.js";
-import { calculateHaversineDistanceKm } from "./src/utils/geo.js";
+import { calculateHaversineDistanceKm, resolveLocalityCoordinates } from "./src/utils/geo.js";
 
 const app = express();
 app.use(cors());
@@ -81,21 +81,32 @@ app.get("/api/:resource", async (req, res, next) => {
     const userLat = req.query.lat ? parseFloat(req.query.lat) : null;
     const userLng = req.query.lng ? parseFloat(req.query.lng) : null;
     const radiusFilter = req.query.radius ? parseFloat(req.query.radius) : null;
+    const searchQuery = req.query.search ? req.query.search.trim() : null;
 
-    // Read ONLY from real MongoDB Atlas database
-    const items = await Listing.find({ type: targetType, status: "active" }).sort({ createdAt: -1 });
+    // Read ONLY from real MongoDB Atlas database with optional keyword/locality search
+    const query = { type: targetType, status: "active" };
+    if (searchQuery) {
+      const reg = new RegExp(searchQuery, "i");
+      query.$or = [
+        { title: reg },
+        { description: reg },
+        { locality: reg },
+        { "lostFoundDetails.itemName": reg },
+        { "lostFoundDetails.description": reg },
+        { "lostFoundDetails.where": reg },
+      ];
+    }
+
+    const items = await Listing.find(query).sort({ createdAt: -1 });
 
     const webFormatted = items.map((item) => {
-      // Calculate real spherical distance using Haversine formula
-      let calculatedKm = 0.8;
-      const itemLat = item.latitude ?? item.location?.coordinates?.[1];
-      const itemLng = item.longitude ?? item.location?.coordinates?.[0];
+      // Calculate real spherical distance using Haversine formula only when authentic coordinates are provided
+      let calculatedKm = null;
+      const itemLat = item.latitude ?? item.location?.coordinates?.[1] ?? null;
+      const itemLng = item.longitude ?? item.location?.coordinates?.[0] ?? null;
 
       if (userLat != null && userLng != null && itemLat != null && itemLng != null) {
         calculatedKm = calculateHaversineDistanceKm(userLat, userLng, itemLat, itemLng);
-      } else if (itemLat != null && itemLng != null) {
-        // Distance relative to central default if user coords not passed
-        calculatedKm = calculateHaversineDistanceKm(28.6139, 77.2090, itemLat, itemLng);
       }
 
       const base = {
@@ -104,9 +115,9 @@ app.get("/api/:resource", async (req, res, next) => {
         title: item.title,
         description: item.description,
         locality: item.locality,
-        latitude: itemLat || 28.6139,
-        longitude: itemLng || 77.2090,
-        location: item.location || { type: "Point", coordinates: [itemLng || 77.2090, itemLat || 28.6139] },
+        latitude: itemLat,
+        longitude: itemLng,
+        location: item.location || (itemLng != null && itemLat != null ? { type: "Point", coordinates: [itemLng, itemLat] } : null),
         photos: item.photos || [],
         videos: item.videos || [],
         ownerId: item.ownerId.toString(),
@@ -118,8 +129,11 @@ app.get("/api/:resource", async (req, res, next) => {
 
       if (targetType === "room") {
         base.rent = item.roomDetails?.rent || 0;
+        base.deposit = item.roomDetails?.deposit || 0;
+        base.roomType = item.roomDetails?.roomType || "Single";
         base.amenities = item.roomDetails?.amenities || [];
         base.verified = item.roomDetails?.verified || false;
+        base.availabilityConfirmedAt = item.roomDetails?.availabilityConfirmedAt || item.updatedAt || item.createdAt;
       } else if (targetType === "vehicle") {
         base.name = item.title;
         base.type = item.vehicleDetails?.vehicleType || "Bike";
@@ -127,8 +141,15 @@ app.get("/api/:resource", async (req, res, next) => {
         base.available = item.vehicleDetails?.available ?? true;
       } else if (targetType === "lost_found") {
         base.kind = item.lostFoundDetails?.kind || "found";
-        base.where = item.locality;
+        base.category = item.lostFoundDetails?.category || "Other";
+        base.itemName = item.lostFoundDetails?.itemName || item.title;
+        base.description = item.lostFoundDetails?.description || item.description || "";
+        base.where = item.lostFoundDetails?.where || item.locality;
         base.by = item.ownerName;
+        base.contactPhone = item.lostFoundDetails?.contactPhone || item.ownerPhone || "";
+        base.reward = item.lostFoundDetails?.reward || "";
+        base.isUrgent = Boolean(item.lostFoundDetails?.isUrgent);
+        base.incidentDate = item.lostFoundDetails?.incidentDate || item.createdAt;
         base.minsAgo = Math.max(1, Math.round((Date.now() - new Date(item.createdAt).getTime()) / 60000));
       } else if (targetType === "service") {
         base.name = item.title;
@@ -147,8 +168,9 @@ app.get("/api/:resource", async (req, res, next) => {
       return base;
     });
 
-    const filtered = radiusFilter != null
-      ? webFormatted.filter((item) => item.km <= radiusFilter)
+    const shouldFilterDistance = radiusFilter != null && radiusFilter < 9999 && !searchQuery;
+    const filtered = shouldFilterDistance
+      ? webFormatted.filter((item) => item.km == null || item.km <= radiusFilter)
       : webFormatted;
 
     return res.json(filtered);
@@ -160,6 +182,12 @@ app.get("/api/:resource", async (req, res, next) => {
 // Web Client: POST /api/:resource (rooms | rentals | lostfound | services)
 // Authenticated user creates a persistent listing in MongoDB Atlas
 app.post("/api/:resource", requireAuth, async (req, res, next) => {
+  if (req.userRole === "admin") {
+    return res.status(403).json({
+      error: "Master Admin accounts cannot post consumer marketplace listings. Use a regular user account.",
+    });
+  }
+
   const resource = req.params.resource;
   const typeMap = {
     rooms: "room",
@@ -176,65 +204,123 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
 
   try {
     const body = req.body || {};
-    const lat = typeof body.latitude === "number" ? body.latitude : (parseFloat(body.latitude) || 28.6139);
-    const lng = typeof body.longitude === "number" ? body.longitude : (parseFloat(body.longitude) || 77.2090);
+    let lat = typeof body.latitude === "number" ? body.latitude : (body.latitude ? parseFloat(body.latitude) : null);
+    let lng = typeof body.longitude === "number" ? body.longitude : (body.longitude ? parseFloat(body.longitude) : null);
+
+    // If coordinates were omitted, automatically resolve using local registry
+    if (lat == null || lng == null) {
+      const placeText = body.locality || body.where || req.user?.area || "";
+      const resolved = resolveLocalityCoordinates(placeText);
+      if (resolved) {
+        lat = resolved.lat;
+        lng = resolved.lng;
+      }
+    }
 
     const listingPayload = {
       ownerId: req.userId,
       ownerName: req.userName,
-      ownerPhone: req.user?.phone || body.phone || "",
+      ownerPhone: req.user?.phone || body.phone || body.contactPhone || "",
       type: targetType,
-      title: body.title || body.name || "Untitled Listing",
+      title: body.title || body.name || body.itemName || "Untitled Listing",
       description: body.description || "",
       locality: body.locality || body.where || req.user?.area || "Local Area",
       latitude: lat,
       longitude: lng,
-      location: {
-        type: "Point",
-        coordinates: [lng, lat],
-      },
       status: "active",
       photos: Array.isArray(body.photos) ? body.photos : [],
       videos: Array.isArray(body.videos) ? body.videos : [],
     };
 
+    if (lat != null && lng != null) {
+      listingPayload.location = {
+        type: "Point",
+        coordinates: [lng, lat],
+      };
+    }
+
     if (targetType === "room") {
       listingPayload.roomDetails = {
         rent: Number(body.rent) || 0,
+        deposit: Number(body.deposit) || 0,
+        roomType: body.roomType || "Single",
         period: body.period || "month",
         amenities: Array.isArray(body.amenities) ? body.amenities : ["WiFi"],
         verified: false,
+        availabilityConfirmedAt: new Date(),
       };
     } else if (targetType === "vehicle") {
       listingPayload.vehicleDetails = {
-        vehicleType: body.type || "Bike",
-        rentalPrice: Number(body.rate) || 0,
+        vehicleType: body.type || body.vehicleType || "Bike",
+        rentalPrice: Number(body.rate || body.rentalPrice) || 0,
         pricingPeriod: "hour",
         available: true,
       };
     } else if (targetType === "lost_found") {
+      const isUrgent = Boolean(body.isUrgent || body.urgent);
       listingPayload.lostFoundDetails = {
         kind: body.kind === "lost" ? "lost" : "found",
-        itemName: body.title || "",
-        incidentDate: new Date(),
+        category: body.category || "Other",
+        itemName: body.title || body.itemName || "",
+        description: body.description || "",
+        where: body.where || body.locality || req.user?.area || "",
+        incidentDate: body.incidentDate ? new Date(body.incidentDate) : new Date(),
+        contactPhone: body.contactPhone || req.user?.phone || "",
+        reward: body.reward || "",
+        isUrgent,
       };
     } else if (targetType === "service") {
       listingPayload.serviceDetails = {
-        serviceCategory: body.trade || "Other",
-        pricingInfo: body.price || "Contact for quote",
+        serviceCategory: body.trade || body.serviceCategory || "Other",
+        pricingInfo: body.price || body.pricingInfo || "Contact for quote",
         rating: 5.0,
         jobsCount: 0,
         available: true,
       };
     } else if (targetType === "alert") {
       listingPayload.alertDetails = {
-        alertType: body.type || "Stuck",
+        alertType: body.type || body.alertType || "Stuck",
         helpersCount: 0,
       };
     }
 
     const created = await Listing.create(listingPayload);
     console.log(`✅ [MongoDB Atlas] New ${targetType} listing persisted: "${created.title}" at (${lat}, ${lng}) by ${req.userName}`);
+
+    // Auto-broadcast Emergency Alert to Locality if an urgent lost item was reported
+    if (targetType === "lost_found" && created.lostFoundDetails?.isUrgent) {
+      try {
+        const alertPayload = {
+          ownerId: req.userId,
+          ownerName: req.userName,
+          ownerPhone: body.contactPhone || req.user?.phone || "",
+          type: "alert",
+          title: `🚨 URGENT LOST ITEM: ${created.title} (${created.locality})`,
+          description: `Urgent lost item report: ${created.description || created.title}. Locality: ${created.locality}. Contact: ${body.contactPhone || req.user?.phone || req.user?.email || "Chat in app"}${body.reward ? ` · Reward: ${body.reward}` : ""}`,
+          locality: created.locality,
+          latitude: created.latitude,
+          longitude: created.longitude,
+          status: "active",
+          photos: created.photos || [],
+          alertDetails: {
+            alertType: "Safety",
+            helpersCount: 0,
+          },
+        };
+        if (created.latitude != null && created.longitude != null) {
+          alertPayload.location = {
+            type: "Point",
+            coordinates: [created.longitude, created.latitude],
+          };
+        }
+        const broadcastAlert = await Listing.create(alertPayload);
+        created.lostFoundDetails.alertBroadcastId = broadcastAlert._id;
+        await created.save();
+        console.log(`🚨 [Emergency Broadcast] Published locality alert for urgent lost item "${created.title}" in ${created.locality}`);
+      } catch (alertErr) {
+        console.warn("Could not create linked urgent broadcast alert:", alertErr.message);
+      }
+    }
 
     // Return format expected by web client
     const webItem = {
@@ -252,6 +338,9 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
       km: 0.1,
       ang: 30,
       rent: created.roomDetails?.rent,
+      deposit: created.roomDetails?.deposit || 0,
+      roomType: created.roomDetails?.roomType || "Single",
+      availabilityConfirmedAt: created.roomDetails?.availabilityConfirmedAt || created.createdAt,
       amenities: created.roomDetails?.amenities,
       verified: created.roomDetails?.verified,
       name: created.title,
@@ -259,8 +348,15 @@ app.post("/api/:resource", requireAuth, async (req, res, next) => {
       rate: created.vehicleDetails?.rentalPrice,
       available: created.vehicleDetails?.available,
       kind: created.lostFoundDetails?.kind,
-      where: created.locality,
+      category: created.lostFoundDetails?.category,
+      itemName: created.lostFoundDetails?.itemName,
+      description: created.lostFoundDetails?.description || created.description,
+      where: created.lostFoundDetails?.where || created.locality,
       by: created.ownerName,
+      contactPhone: created.lostFoundDetails?.contactPhone || created.ownerPhone,
+      reward: created.lostFoundDetails?.reward,
+      isUrgent: created.lostFoundDetails?.isUrgent,
+      incidentDate: created.lostFoundDetails?.incidentDate || created.createdAt,
       trade: created.serviceDetails?.serviceCategory,
       price: created.serviceDetails?.pricingInfo,
       rating: created.serviceDetails?.rating,
@@ -284,7 +380,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 export const server = app.listen(PORT, () => {
-  console.log(`🚀 LocalConnect API Server listening on port ${PORT}`);
+  console.log(`🚀 NearNest API Server listening on port ${PORT}`);
 });
 
 export default app;

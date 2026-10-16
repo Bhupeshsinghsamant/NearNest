@@ -267,6 +267,29 @@ export async function runTests() {
     });
     recordTest("Permit Owner Delete", authorizedDeleteRes.status === 200);
 
+    // 15. Mobile Upload Route Contract Check (Route exists & enforces requireAuth)
+    const uploadRouteCheck = await fetch(`${BASE_URL}/api/v1/upload`, {
+      method: "POST",
+    });
+    recordTest(
+      "Mobile /api/v1/upload Route Exists & Protected",
+      uploadRouteCheck.status === 401,
+      `Expected 401, got ${uploadRouteCheck.status}`
+    );
+
+    // 16. Rate Limiter Security Headers on Auth Routes
+    const authHeadersCheck = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "invalid@example.com", password: "wrong" }),
+    });
+    const hasRateLimitHeader = authHeadersCheck.headers.has("x-ratelimit-limit");
+    recordTest(
+      "Auth Rate Limiter Protection Headers Active",
+      hasRateLimitHeader,
+      `Limit: ${authHeadersCheck.headers.get("x-ratelimit-limit")}`
+    );
+
     // Summary
     const passedCount = results.filter((r) => r.passed).length;
     console.log(`\n==================================================`);

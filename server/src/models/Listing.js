@@ -91,9 +91,16 @@ const listingSchema = new mongoose.Schema(
     // Category 1: Room Rent
     roomDetails: {
       rent: { type: Number, min: 0 },
+      deposit: { type: Number, min: 0, default: 0 },
+      roomType: {
+        type: String,
+        enum: ["Single", "1RK", "1BHK", "2BHK", "Shared", "PG", "Other"],
+        default: "Single",
+      },
       period: { type: String, default: "month" },
       amenities: { type: [String], default: [] },
       verified: { type: Boolean, default: false },
+      availabilityConfirmedAt: { type: Date, default: Date.now },
     },
 
     // Category 2: Vehicle Rent
@@ -115,8 +122,18 @@ const listingSchema = new mongoose.Schema(
         enum: ["lost", "found"],
         default: "found",
       },
+      category: {
+        type: String,
+        default: "Other",
+      },
       itemName: { type: String, trim: true },
+      description: { type: String, default: "" },
+      where: { type: String, default: "" },
       incidentDate: { type: Date, default: Date.now },
+      contactPhone: { type: String, default: "" },
+      reward: { type: String, default: "" },
+      isUrgent: { type: Boolean, default: false },
+      alertBroadcastId: { type: mongoose.Schema.Types.ObjectId, ref: "Listing" },
     },
 
     // Category 4: Civil Help / Local Services

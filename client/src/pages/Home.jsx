@@ -6,7 +6,7 @@ import { ago } from "../components/ui.jsx";
 import { useResource, useStore } from "../store.jsx";
 
 export default function Home() {
-  const { radius, user } = useStore();
+  const { radius, setRadius, user, userLocation } = useStore();
   const [rooms] = useResource("rooms");
   const [lf] = useResource("lostfound");
   const [rentals] = useResource("rentals");
@@ -21,14 +21,24 @@ export default function Home() {
     ...services.map((r) => ({ ...r, kind: "services", label: r.name })),
     ...alerts.map((r) => ({ ...r, kind: "alerts", label: r.title })),
   ];
-  const near = (list) => list.filter((x) => x.km <= radius).length;
+
+  const near = (list) =>
+    radius >= 9999 ? list.length : list.filter((x) => x.km == null || x.km <= radius).length;
+
+  const totalNearby = near(rooms) + near(lf) + near(rentals) + near(services);
+  const totalAllDatabase = rooms.length + lf.length + rentals.length + services.length;
+
   const tiles = [
     { to: "/rooms", label: "Rooms for rent", n: near(rooms), icon: KeyRound, kind: "rooms" },
     { to: "/lost-found", label: "Lost & found", n: near(lf), icon: SearchCheck, kind: "lostfound" },
     { to: "/rentals", label: "Scooty, bike, car", n: near(rentals), icon: Bike, kind: "rentals" },
     { to: "/services", label: "Local services", n: near(services), icon: Wrench, kind: "services" },
   ];
-  const liveAlerts = alerts.filter((a) => a.km <= radius).slice(0, 2);
+  const liveAlerts = alerts.filter((a) => radius >= 9999 || a.km == null || a.km <= radius).slice(0, 2);
+
+  // If strict radius has 0 items but database has items, show them on map so user is never stranded
+  const displayPins = radius >= 9999 ? pins : pins.filter((p) => p.km == null || p.km <= radius);
+  const activePins = displayPins.length > 0 ? displayPins : pins;
 
   return (
     <>
@@ -41,9 +51,56 @@ export default function Home() {
         <div className="quick">
           <Link className="btn alert" to="/alerts"><Siren size={16} /> Urgent alert</Link>
           <Link className="btn" to="/rooms">List a room</Link>
-          <Link className="btn" to="/lost-found">Post a found item</Link>
+          <Link className="btn" to="/lost-found?tab=lost" style={{ borderColor: "#FCA5A5", color: "#DC2626", background: "#FEF2F2" }}>
+            🔍 Report lost item
+          </Link>
+          <Link className="btn" to="/lost-found?tab=found">Post found item</Link>
         </div>
       </section>
+
+      {/* Discovery Assistant Banner when 0 items in radius */}
+      {totalNearby === 0 && totalAllDatabase > 0 && (
+        <div
+          style={{
+            background: "#EFF6FF",
+            border: "1px solid #BFDBFE",
+            borderRadius: "12px",
+            padding: "12px 18px",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "10px",
+          }}
+        >
+          <div>
+            <strong style={{ color: "#1E40AF", fontSize: "0.92rem" }}>
+              📍 0 items within {radius} km of {userLocation?.area || "your current center"}
+            </strong>
+            <p style={{ margin: "2px 0 0 0", fontSize: "0.82rem", color: "#3B82F6" }}>
+              We found {totalAllDatabase} listings in surrounding towns (Bhimtal, Nainital, etc.).
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              className="btn"
+              style={{ fontSize: "0.8rem", padding: "4px 10px" }}
+              onClick={() => setRadius(50)}
+            >
+              Expand to 50 km
+            </button>
+            <button
+              className="btn primary"
+              style={{ fontSize: "0.8rem", padding: "4px 12px" }}
+              onClick={() => setRadius(9999)}
+            >
+              Show All Distance
+            </button>
+          </div>
+        </div>
+      )}
+
       {liveAlerts.length > 0 && (
         <Link to="/alerts" className="banner">
           <Siren size={20} />
@@ -54,11 +111,18 @@ export default function Home() {
           <em>{ago(liveAlerts[0].minsAgo)}</em>
         </Link>
       )}
+
       <div className="home-grid">
         <section>
-          <MapView pins={pins} radius={radius} selected={sel && `${sel.kind}-${sel.id}`} onSelect={setSel} height={430} />
+          <MapView pins={activePins} radius={radius} selected={sel && `${sel.kind}-${sel.id}`} onSelect={setSel} height={430} />
           <p className="map-caption">
-            {sel ? <><b>{sel.label}</b> · {sel.km} km away</> : "Tap a pin to see what it is. Change the radius from the sidebar."}
+            {sel ? (
+              <><b>{sel.label}</b> · {sel.km != null ? `${sel.km} km away` : "Nearby"}</>
+            ) : totalNearby === 0 && totalAllDatabase > 0 ? (
+              <span style={{ color: "#2563EB", fontWeight: 600 }}>Showing pins from surrounding areas on map</span>
+            ) : (
+              "Tap a pin to see what it is. Change the radius from the sidebar."
+            )}
           </p>
         </section>
         <section className="tiles">

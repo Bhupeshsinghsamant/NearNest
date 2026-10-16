@@ -80,8 +80,9 @@ export default function Rooms() {
     }
   }, [mode]);
 
-  const list = rooms.filter((r) => r.km == null || r.km <= radius);
-  const pins = list.map((r) => ({
+  const list = radius >= 9999 ? rooms : rooms.filter((r) => r.km == null || r.km <= radius);
+  const displayRooms = list.length > 0 ? list : rooms;
+  const pins = displayRooms.map((r) => ({
     ...r,
     kind: "rooms",
     label: r.title,
@@ -138,10 +139,12 @@ export default function Rooms() {
       const item = await post("rooms", {
         title: form.title,
         rent: Number(form.rent),
-        locality: form.locality || user?.area || "Local Area",
-        latitude: form.latitude || userLocation?.lat || 28.6139,
-        longitude: form.longitude || userLocation?.lng || 77.2090,
-        amenities: form.amenities ? form.amenities.split(",").map((s) => s.trim()) : ["Attached Bath", "WiFi"],
+        deposit: Number(form.deposit) || 0,
+        roomType: form.roomType || "Single",
+        locality: form.locality || userLocation?.area || user?.area || "Local Area",
+        latitude: form.latitude || userLocation?.lat,
+        longitude: form.longitude || userLocation?.lng,
+        amenities: form.amenities ? (Array.isArray(form.amenities) ? form.amenities : form.amenities.split(",").map((s) => s.trim())) : ["Attached Bath", "WiFi"],
         photos: form.photos || [],
         videos: form.videos || [],
         verified: false,
@@ -277,8 +280,56 @@ export default function Rooms() {
                   )}
 
                   <div className="card-top">
-                    <h3>{r.title}</h3>
-                    <strong className="price">Rs {Number(r.rent || 0).toLocaleString("en-IN")}<small>/mo</small></strong>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            background: "#EFF6FF",
+                            color: "#1D4ED8",
+                            border: "1px solid #BFDBFE",
+                          }}
+                        >
+                          {r.roomType || "Room"}
+                        </span>
+                        {(() => {
+                          const lastConfirmed = r.availabilityConfirmedAt || r.updatedAt || r.createdAt;
+                          const daysAgo = Math.round((Date.now() - new Date(lastConfirmed).getTime()) / (1000 * 60 * 60 * 24));
+                          const isFresh = daysAgo <= 7;
+                          return (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: 999,
+                                background: isFresh ? "#DCFCE7" : "#FEF3C7",
+                                color: isFresh ? "#166534" : "#92400E",
+                              }}
+                              title={`Availability verified ${daysAgo === 0 ? "today" : `${daysAgo}d ago`}`}
+                            >
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: isFresh ? "#10B981" : "#F59E0B" }} />
+                              {isFresh ? "Available Now" : "Awaiting Update"}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <h3 style={{ margin: 0 }}>{r.title}</h3>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <strong className="price">₹{Number(r.rent || 0).toLocaleString("en-IN")}<small>/mo</small></strong>
+                      {r.deposit ? (
+                        <div style={{ fontSize: "11px", color: "var(--mute)", marginTop: 2 }}>
+                          Deposit: ₹{Number(r.deposit).toLocaleString("en-IN")}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   <p className="meta">
                     {r.owner} · {r.locality || "Local Area"} {r.km != null ? `· ${r.km} km away` : ""}

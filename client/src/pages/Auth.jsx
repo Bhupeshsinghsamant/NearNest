@@ -108,8 +108,8 @@ export default function Auth({ mode }) {
         <div className="brand">
           <span className="brand-mark"><MapPinned size={22} /></span>
           <div>
-            <strong>Local Connect</strong>
-            <small>Your area, in one app</small>
+            <strong>NearNest</strong>
+            <small>Hyperlocal Community Marketplace</small>
           </div>
         </div>
         <h1>Everything around you, one login away</h1>

@@ -6,12 +6,12 @@ import { useResource, useStore } from "../store.jsx";
 import { post, del } from "../api.js";
 
 export default function Alerts() {
-  const { radius, notify, user } = useStore();
+  const { radius, setRadius, notify, user, userLocation } = useStore();
   const [alerts, setAlerts] = useResource("alerts");
   const [open, setOpen] = useState(false);
   const [helped, setHelped] = useState({});
 
-  const list = alerts.filter((a) => a.km == null || a.km <= radius);
+  const list = alerts.filter((a) => radius >= 9999 || a.km == null || a.km <= radius);
   const pins = list.map((a) => ({ ...a, kind: "alerts", label: a.title }));
 
   const help = async (a) => {
@@ -42,7 +42,13 @@ export default function Alerts() {
 
   const send = async (form) => {
     try {
-      const item = await post("alerts", { ...form, by: user.name, locality: user?.area || "Local Area" });
+      const item = await post("alerts", {
+        ...form,
+        by: user.name,
+        locality: form.locality || userLocation?.area || user?.area || "Local Area",
+        latitude: userLocation?.lat,
+        longitude: userLocation?.lng,
+      });
       setAlerts((l) => [item, ...l]);
       setOpen(false);
       notify("Alert broadcasted to database. Visible to everyone nearby.");

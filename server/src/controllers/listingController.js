@@ -102,6 +102,13 @@ export async function getListingById(req, res, next) {
 
 export async function createListing(req, res, next) {
   try {
+    if (req.userRole === "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Master Admin accounts cannot post consumer marketplace listings. Use a regular user account.",
+      });
+    }
+
     const listingData = {
       ...req.body,
       ownerId: req.userId,

@@ -7,7 +7,7 @@ import { post, del } from "../api.js";
 const TRADES = ["All", "Electrician", "Mechanic", "Plumber", "Notes", "Other"];
 
 export default function Services() {
-  const { radius, notify, user } = useStore();
+  const { radius, setRadius, notify, user, userLocation } = useStore();
   const [services, setServices] = useResource("services");
   const [trade, setTrade] = useState("All");
   const [q, setQ] = useState("");
@@ -15,7 +15,7 @@ export default function Services() {
 
   const list = services.filter(
     (s) =>
-      (s.km == null || s.km <= radius) &&
+      (radius >= 9999 || s.km == null || s.km <= radius) &&
       (trade === "All" || s.trade === trade) &&
       (s.name || "").toLowerCase().includes(q.toLowerCase())
   );
@@ -26,7 +26,9 @@ export default function Services() {
         name: form.name,
         trade: form.trade,
         price: form.price,
-        locality: form.locality || user?.area || "Local Area",
+        locality: form.locality || userLocation?.area || user?.area || "Local Area",
+        latitude: form.latitude || userLocation?.lat,
+        longitude: form.longitude || userLocation?.lng,
         available: true,
       });
       setServices((prev) => [item, ...prev]);

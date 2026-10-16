@@ -1,5 +1,5 @@
 {
-  "name": "local-connect-server",
+  "name": "nearnest-server",
   "private": true,
   "type": "module",
   "scripts": {

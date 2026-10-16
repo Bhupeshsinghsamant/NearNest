@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ShieldAlert,
   Users,
@@ -25,7 +26,22 @@ import { get, del, patch } from "../api.js";
 
 export default function Admin() {
   const { notify, user } = useStore();
-  const [tab, setTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramTab = searchParams.get("tab");
+  const validTabs = ["overview", "listings", "requests", "users"];
+  const [tab, setTab] = useState(validTabs.includes(paramTab) ? paramTab : "overview");
+
+  useEffect(() => {
+    const qTab = searchParams.get("tab");
+    if (qTab && validTabs.includes(qTab)) {
+      setTab(qTab);
+    }
+  }, [searchParams]);
+
+  const selectTab = (t) => {
+    setTab(t);
+    setSearchParams(t === "overview" ? {} : { tab: t });
+  };
 
   // State
   const [metrics, setMetrics] = useState(null);
@@ -309,7 +325,7 @@ export default function Admin() {
 
       <Segmented
         value={tab}
-        onChange={setTab}
+        onChange={selectTab}
         options={[
           { value: "overview", label: "Platform Overview" },
           { value: "listings", label: `All Listings ${listings.length ? `(${listings.length})` : ""}` },

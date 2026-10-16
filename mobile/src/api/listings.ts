@@ -67,8 +67,8 @@ export async function uploadListingMedia(
     } as any);
   });
 
-  const response = await apiClient.post<{ success: boolean; files: UploadedFileResponse[] }>(
-    "/upload",
+  const response = await apiClient.post<{ success: boolean; files: any[] }>(
+    "/upload/media",
     formData,
     {
       headers: {
@@ -77,6 +77,11 @@ export async function uploadListingMedia(
     }
   );
 
-  return response.data.files || [];
+  return (response.data.files || []).map((f: any) => ({
+    url: f.url,
+    originalName: f.originalName || f.name || "",
+    size: f.size || 0,
+    mimeType: f.mimeType || "",
+  }));
 }
 

@@ -7,13 +7,13 @@ import { post, del } from "../api.js";
 const LATE_SURCHARGE = 30;
 
 export default function Rentals() {
-  const { radius, notify, user } = useStore();
+  const { radius, setRadius, notify, user, userLocation } = useStore();
   const [rentals, setRentals] = useResource("rentals");
   const [type, setType] = useState("All");
   const [booking, setBooking] = useState(null);
   const [adding, setAdding] = useState(false);
 
-  const list = rentals.filter((r) => (r.km == null || r.km <= radius) && (type === "All" || r.type === type));
+  const list = rentals.filter((r) => (radius >= 9999 || r.km == null || r.km <= radius) && (type === "All" || r.type === type));
 
   const addVehicle = async (form) => {
     try {
@@ -21,7 +21,9 @@ export default function Rentals() {
         name: form.name,
         type: form.type,
         rate: Number(form.rate),
-        locality: form.locality || user?.area || "Local Area",
+        locality: form.locality || userLocation?.area || user?.area || "Local Area",
+        latitude: form.latitude || userLocation?.lat,
+        longitude: form.longitude || userLocation?.lng,
         available: true,
       });
       setRentals((prev) => [item, ...prev]);

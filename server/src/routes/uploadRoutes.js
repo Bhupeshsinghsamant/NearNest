@@ -56,10 +56,12 @@ export const upload = multer({
   },
 });
 
+import { uploadLimiter } from "../middleware/rateLimiter.js";
+
 const router = express.Router();
 
-// Authenticated Media Upload Route
-router.post("/media", requireAuth, (req, res) => {
+// Reusable Authenticated Media Upload Handler
+const handleUpload = (req, res) => {
   upload.array("files", 12)(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
@@ -116,6 +118,7 @@ router.post("/media", requireAuth, (req, res) => {
       uploadedMedia.push({
         url: `/uploads/listings/${file.filename}`,
         name: file.originalname,
+        originalName: file.originalname,
         size: file.size,
         mimeType: file.mimetype,
         type: isVideo ? "video" : "image",
@@ -135,7 +138,11 @@ router.post("/media", requireAuth, (req, res) => {
       files: uploadedMedia,
     });
   });
-});
+};
+
+// Mount upload handler at both /media and / for 100% web and mobile client compatibility
+router.post("/media", uploadLimiter, requireAuth, handleUpload);
+router.post("/", uploadLimiter, requireAuth, handleUpload);
 
 /**
  * Utility to safely remove media files from disk when a listing is deleted.

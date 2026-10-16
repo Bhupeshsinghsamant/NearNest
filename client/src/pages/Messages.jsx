@@ -17,6 +17,11 @@ import {
   Sparkles,
   ArrowLeft,
   ShieldCheck,
+  Lock,
+  PhoneCall,
+  Copy,
+  MessageCircle,
+  X,
 } from "lucide-react";
 import { useStore } from "../store.jsx";
 import { get, post, patch } from "../api.js";
@@ -36,6 +41,8 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [partnerLastRead, setPartnerLastRead] = useState(null);
+  const [showCallModal, setShowCallModal] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -44,6 +51,22 @@ export default function Messages() {
 
   const feedRef = useRef(null);
   const pollTimerRef = useRef(null);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  // Mark conversation as read on server & store
+  const markAsRead = useCallback(async (convId) => {
+    if (!convId) return;
+    try {
+      await patch("requests", `${convId}/read`, {});
+      setConversations((prev) =>
+        prev.map((c) => ((c.id === convId || c._id === convId) ? { ...c, unreadCount: 0 } : c))
+      );
+      if (refreshUnreadCount) refreshUnreadCount();
+    } catch (err) {
+      console.error("Failed to mark read:", err);
+    }
+  }, [refreshUnreadCount]);
 
   // Fetch all user conversations
   const fetchConversations = useCallback(async (silent = false) => {
@@ -51,12 +74,23 @@ export default function Messages() {
       if (!silent) setLoading(true);
       const res = await get("requests/conversations");
       const list = Array.isArray(res) ? res : res.data || [];
-      setConversations(list);
+
+      // For the active chat, keep unreadCount strictly 0 so polling never resets unread badge!
+      const currentSelected = selectedIdRef.current;
+      const normalizedList = list.map((c) => {
+        const cid = c.id || c._id;
+        if (currentSelected && cid === currentSelected) {
+          return { ...c, unreadCount: 0 };
+        }
+        return c;
+      });
+
+      setConversations(normalizedList);
 
       // Auto-select first conversation on initial load if none selected
       setSelectedId((curr) => {
-        if (!curr && list.length > 0 && window.innerWidth > 768) {
-          return list[0].id || list[0]._id;
+        if (!curr && normalizedList.length > 0 && window.innerWidth > 768) {
+          return normalizedList[0].id || normalizedList[0]._id;
         }
         return curr;
       });
@@ -75,24 +109,20 @@ export default function Messages() {
       const res = await get(`requests/${convId}/messages`);
       const msgList = Array.isArray(res) ? res : res.data || [];
       setMessages(msgList);
-    } catch (err) {
-      console.error("Failed to load messages:", err);
-    } finally {
-      if (!silent) setLoadingMessages(false);
-    }
-  }, []);
 
-  // Mark conversation as read
-  const markAsRead = useCallback(async (convId) => {
-    if (!convId) return;
-    try {
-      await patch("requests", `${convId}/read`, {});
+      if (res?.partnerLastReadAt) {
+        setPartnerLastRead(res.partnerLastReadAt);
+      }
+
+      // Active chat is being viewed - immediately clear local badge & sync global unread counter
       setConversations((prev) =>
         prev.map((c) => ((c.id === convId || c._id === convId) ? { ...c, unreadCount: 0 } : c))
       );
       if (refreshUnreadCount) refreshUnreadCount();
     } catch (err) {
-      console.error("Failed to mark read:", err);
+      console.error("Failed to load messages:", err);
+    } finally {
+      if (!silent) setLoadingMessages(false);
     }
   }, [refreshUnreadCount]);
 
@@ -106,6 +136,10 @@ export default function Messages() {
     if (selectedId) {
       fetchMessages(selectedId);
       markAsRead(selectedId);
+      const currentConv = conversations.find((c) => (c.id === selectedId || c._id === selectedId));
+      if (currentConv?.partnerLastReadAt) {
+        setPartnerLastRead(currentConv.partnerLastReadAt);
+      }
     }
   }, [selectedId, fetchMessages, markAsRead]);
 
@@ -385,55 +419,52 @@ export default function Messages() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {selectedConv.status === "accepted" ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span className="status ok" style={{ fontSize: "0.75rem", padding: "3px 8px" }}>
+                    <span className="status ok" style={{ fontSize: "0.75rem", padding: "4px 8px" }}>
                       <CheckCircle2 size={12} style={{ marginRight: 3 }} /> Connected
                     </span>
-                    {selectedConv.partner?.phone && (
-                      <>
-                        <a
-                          href={`tel:${selectedConv.partner.phone}`}
-                          className="btn"
-                          style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                          title="Call phone"
-                        >
-                          <Phone size={13} style={{ marginRight: 4 }} /> Call
-                        </a>
-                        <a
-                          href={`https://wa.me/${selectedConv.partner.phone.replace(/\D/g, "")}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn"
-                          style={{ padding: "4px 8px", fontSize: "0.75rem", background: "#10B981", color: "white", borderColor: "#10B981" }}
-                          title="Chat on WhatsApp"
-                        >
-                          WhatsApp
-                        </a>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      className="btn primary call-btn-active"
+                      style={{ padding: "5px 12px", fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 8, fontWeight: 700 }}
+                      onClick={() => setShowCallModal(true)}
+                    >
+                      <PhoneCall size={14} /> Call Now
+                    </button>
                   </div>
                 ) : selectedConv.status === "pending" ? (
-                  selectedConv.myRole === "seller" ? (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        className="btn primary"
-                        style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                        onClick={() => handleDecide("accepted")}
-                      >
-                        <CheckCircle2 size={13} style={{ marginRight: 4 }} /> Accept Request
-                      </button>
-                      <button
-                        className="btn"
-                        style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                        onClick={() => handleDecide("declined")}
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="status wait" style={{ fontSize: "0.75rem", padding: "3px 8px" }}>
-                      Inquiry Pending
-                    </span>
-                  )
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="btn call-btn-locked"
+                      style={{ padding: "4px 10px", fontSize: "0.75rem", opacity: 0.75, display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+                      onClick={() => notify("🔒 Calling unlocks automatically once the inquiry request is accepted.")}
+                      title="Voice/Phone call unlocks once request is accepted"
+                    >
+                      <Lock size={12} /> Call (Locked)
+                    </button>
+                    {selectedConv.myRole === "seller" ? (
+                      <>
+                        <button
+                          className="btn primary"
+                          style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                          onClick={() => handleDecide("accepted")}
+                        >
+                          <CheckCircle2 size={13} style={{ marginRight: 4 }} /> Accept Request
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                          onClick={() => handleDecide("declined")}
+                        >
+                          Decline
+                        </button>
+                      </>
+                    ) : (
+                      <span className="status wait" style={{ fontSize: "0.75rem", padding: "3px 8px" }}>
+                        Inquiry Pending
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="status bad" style={{ fontSize: "0.75rem", padding: "3px 8px" }}>
                     Declined
@@ -467,6 +498,7 @@ export default function Messages() {
                 messages.map((m, idx) => {
                   const isMe = m.senderId === user?.id || m.senderName === user?.name;
                   const time = new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const isSeen = isMe && partnerLastRead && new Date(partnerLastRead) >= new Date(m.createdAt);
 
                   return (
                     <div key={idx} className={`msg-row ${isMe ? "me" : "them"}`}>
@@ -479,13 +511,42 @@ export default function Messages() {
                         <span className="msg-text">{m.text}</span>
                         <div className="msg-meta">
                           <span>{time}</span>
-                          {isMe && <CheckCheck size={12} color="#93C5FD" style={{ marginLeft: 4 }} />}
+                          {isMe && (
+                            isSeen ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "#60A5FA", fontWeight: 600 }} title="Seen by partner">
+                                <CheckCheck size={13} color="#60A5FA" />
+                                <span style={{ fontSize: "0.68rem" }}>Seen</span>
+                              </span>
+                            ) : (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "rgba(255,255,255,0.7)" }} title="Delivered">
+                                <Check size={12} />
+                                <span style={{ fontSize: "0.68rem" }}>Sent</span>
+                              </span>
+                            )
+                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })
               )}
+
+              {/* Instagram-style bottom Seen receipt */}
+              {(() => {
+                if (messages.length === 0) return null;
+                const lastMsg = messages[messages.length - 1];
+                const isMe = lastMsg && (lastMsg.senderId === user?.id || lastMsg.senderName === user?.name);
+                const isSeen = isMe && partnerLastRead && new Date(partnerLastRead) >= new Date(lastMsg.createdAt);
+                if (isSeen) {
+                  const seenTime = new Date(partnerLastRead).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div className="seen-receipt-row">
+                      <span>Seen {seenTime}</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Quick Negotiation Chips */}
@@ -544,6 +605,189 @@ export default function Messages() {
         )}
       </main>
     </div>
+
+    {/* Verified Direct Call Modal */}
+    {showCallModal && selectedConv && (
+      <div
+        className="modal-backdrop"
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, 0.65)",
+          backdropFilter: "blur(4px)",
+          display: "grid",
+          placeItems: "center",
+          zIndex: 9999,
+          padding: 16,
+        }}
+        onClick={() => setShowCallModal(false)}
+      >
+        <div
+          className="modal-card"
+          style={{
+            background: "#FFFFFF",
+            borderRadius: 16,
+            width: "100%",
+            maxWidth: 420,
+            padding: "24px",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: 800,
+                  color: "#16A34A",
+                  background: "#DCFCE7",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  display: "inline-block",
+                  marginBottom: 6,
+                }}
+              >
+                Inquiry Accepted • Verified Direct Call
+              </span>
+              <h3 style={{ margin: "2px 0 0", fontSize: "1.25rem", color: "#0F172A" }}>
+                Connect with {selectedConv.partner?.name}
+              </h3>
+              <small style={{ color: "var(--mute)", display: "block", marginTop: 2 }}>
+                Regarding: <strong>{selectedConv.listingTitle}</strong>
+              </small>
+            </div>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setShowCallModal(false)}
+              style={{ padding: 6, borderRadius: 8 }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {selectedConv.partner?.phone ? (
+            <div>
+              <div
+                style={{
+                  background: "#F8FAFC",
+                  border: "1.5px solid #E2E8F0",
+                  borderRadius: 12,
+                  padding: "16px",
+                  marginBottom: 16,
+                  textAlign: "center",
+                }}
+              >
+                <span style={{ fontSize: "0.78rem", color: "#64748B", display: "block", fontWeight: 600, marginBottom: 4 }}>
+                  Verified Contact Number
+                </span>
+                <span style={{ fontSize: "1.35rem", fontWeight: 800, letterSpacing: "1px", color: "#0F172A" }}>
+                  {selectedConv.partner.phone}
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <a
+                  href={`tel:${selectedConv.partner.phone}`}
+                  className="btn primary"
+                  style={{
+                    padding: "11px",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    borderRadius: 10,
+                    textDecoration: "none",
+                    fontWeight: 700,
+                  }}
+                >
+                  <PhoneCall size={16} /> Direct Call
+                </a>
+                <a
+                  href={`https://wa.me/${selectedConv.partner.phone.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn"
+                  style={{
+                    padding: "11px",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    borderRadius: 10,
+                    background: "#10B981",
+                    color: "#FFFFFF",
+                    borderColor: "#10B981",
+                    textDecoration: "none",
+                    fontWeight: 700,
+                  }}
+                >
+                  <MessageCircle size={16} /> WhatsApp
+                </a>
+              </div>
+
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  borderRadius: 10,
+                  fontWeight: 600,
+                }}
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedConv.partner.phone);
+                  notify("Phone number copied to clipboard!");
+                }}
+              >
+                <Copy size={14} /> Copy Phone Number
+              </button>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "#FEF3C7",
+                  display: "grid",
+                  placeItems: "center",
+                  margin: "0 auto 12px",
+                }}
+              >
+                <Phone size={24} color="#D97706" />
+              </div>
+              <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem" }}>No direct number on profile</h4>
+              <p style={{ fontSize: "0.85rem", color: "var(--mute)", margin: "0 0 16px", lineHeight: 1.5 }}>
+                {selectedConv.partner?.name} hasn&apos;t added their phone number yet. You can ask them to share their number in chat!
+              </p>
+              <button
+                type="button"
+                className="btn primary"
+                style={{ width: "100%", padding: "11px", borderRadius: 10, fontWeight: 700 }}
+                onClick={() => {
+                  handleSend("📞 Can you please share your phone number so we can connect directly?");
+                  setShowCallModal(false);
+                }}
+              >
+                Ask for phone number in chat
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     </>
   );
 }

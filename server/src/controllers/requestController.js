@@ -14,6 +14,14 @@ export async function createRequest(req, res, next) {
       return res.status(404).json({ success: false, error: "Listing not found." });
     }
 
+    // Master Admin accounts are platform guardians and cannot send consumer marketplace inquiries
+    if (req.userRole === "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Master Admin accounts cannot initiate marketplace inquiries. Use a standard user account.",
+      });
+    }
+
     // A user cannot send an inquiry to themselves
     if (listing.ownerId.toString() === req.userId) {
       return res.status(400).json({
@@ -156,9 +164,31 @@ export async function getMessages(req, res, next) {
       });
     }
 
+    const isBuyer = request.buyerId.toString() === req.userId;
+    const isSeller = request.sellerId.toString() === req.userId;
+
+    // Auto-mark conversation as read when actively viewing/fetching messages
+    let markedRead = false;
+    if (isBuyer) {
+      request.buyerLastReadAt = new Date();
+      markedRead = true;
+    } else if (isSeller) {
+      request.sellerLastReadAt = new Date();
+      markedRead = true;
+    }
+
+    if (markedRead) {
+      await request.save();
+    }
+
+    const partnerLastReadAt = isBuyer
+      ? request.sellerLastReadAt
+      : request.buyerLastReadAt;
+
     return res.json({
       success: true,
       data: request.messages || [],
+      partnerLastReadAt: partnerLastReadAt || null,
     });
   } catch (error) {
     next(error);
@@ -288,6 +318,7 @@ export async function getConversations(req, res, next) {
         listingPrice,
         listingCover,
         partner,
+        partnerLastReadAt,
         myRole,
         status: r.status,
         unreadCount,

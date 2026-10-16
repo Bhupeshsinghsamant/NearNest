@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { get, login as apiLogin, signup as apiSignup } from "./api.js";
+import { geocodeLocality, reverseGeocode } from "./utils/geo.js";
 
 const Ctx = createContext(null);
 
@@ -8,7 +9,7 @@ const readSession = () => {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
 };
 
-const DEFAULT_COORDS = { lat: 28.6139, lng: 77.2090 }; // Central default
+const DEFAULT_COORDS = { lat: 29.3500, lng: 79.5500, area: "Bhimtal, Uttarakhand" }; // Local Community Hub
 
 export function StoreProvider({ children }) {
   const [radius, setRadius] = useState(10);
@@ -23,24 +24,38 @@ export function StoreProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [session, setSession] = useState(readSession);
 
-  // Auto-detect browser location once if available
+  // Auto-detect browser location once if available, or sync user registered area
   useEffect(() => {
-    if (navigator.geolocation) {
+    const saved = localStorage.getItem("lc_coords");
+    if (!saved && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        async (pos) => {
+          const areaName = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          const coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            area: areaName || "Current Location",
+          };
           setUserLocation(coords);
           try {
             localStorage.setItem("lc_coords", JSON.stringify(coords));
           } catch {}
         },
-        () => {
-          // Keep default if permission denied
+        async () => {
+          // If GPS denied, resolve user's profile area if available
+          if (session?.user?.area) {
+            const geo = await geocodeLocality(session.user.area);
+            if (geo) {
+              const coords = { lat: geo.lat, lng: geo.lng, area: session.user.area };
+              setUserLocation(coords);
+              try { localStorage.setItem("lc_coords", JSON.stringify(coords)); } catch {}
+            }
+          }
         },
         { timeout: 8000 }
       );
     }
-  }, []);
+  }, [session?.user?.area]);
 
   // Auto-sync authenticated user role & profile from MongoDB Atlas
   useEffect(() => {
@@ -93,6 +108,23 @@ export function StoreProvider({ children }) {
     } catch {}
   };
 
+  const setManualArea = async (areaText) => {
+    if (!areaText || !areaText.trim()) return false;
+    const geo = await geocodeLocality(areaText);
+    if (geo) {
+      const coords = { lat: geo.lat, lng: geo.lng, area: geo.name || areaText };
+      setUserLocation(coords);
+      try {
+        localStorage.setItem("lc_coords", JSON.stringify(coords));
+      } catch {}
+      notify(`Location centered on: ${geo.name || areaText}`);
+      return true;
+    } else {
+      notify(`Could not find coordinates for "${areaText}". Try typing city or district name.`);
+      return false;
+    }
+  };
+
   const notify = useCallback((message) => {
     setToast(message);
     clearTimeout(window.__toastTimer);
@@ -126,6 +158,7 @@ export function StoreProvider({ children }) {
         setRadius,
         userLocation,
         setUserLocation: updateLocation,
+        setManualArea,
         notify,
         user: session?.user || null,
         unreadCount,

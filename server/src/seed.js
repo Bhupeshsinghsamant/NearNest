@@ -17,7 +17,20 @@ async function seed() {
     process.exit(1);
   }
 
-  // Clear existing data (optional, for clean reset)
+  // CRITICAL SAFETY GUARD: Prevent destructive data wiping in production or without explicit opt-in
+  if (process.env.NODE_ENV === "production") {
+    console.error("🛑 FATAL: Seeding is strictly forbidden in production environment!");
+    process.exit(1);
+  }
+
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "true") {
+    console.error(
+      "🛑 BLOCKED: Seeding deletes existing users and listings. To proceed deliberately, set ALLOW_DESTRUCTIVE_SEED=true."
+    );
+    process.exit(1);
+  }
+
+  // Clear existing data (guarded opt-in for isolated test environments only)
   await User.deleteMany({});
   await Listing.deleteMany({});
   console.log("🧹 Cleared existing users and listings.");

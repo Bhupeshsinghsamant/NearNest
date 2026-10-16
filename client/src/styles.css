@@ -682,3 +682,49 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   border-radius: 999px;
 }
 
+/* Instagram-style Seen Receipt */
+.seen-receipt-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 12px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94A3B8;
+  letter-spacing: 0.2px;
+  animation: fadeInSeen 0.25s ease-in;
+}
+
+@keyframes fadeInSeen {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Verified Call Buttons */
+.call-btn-active {
+  background: #10B981 !important;
+  border-color: #059669 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  transition: all 0.15s ease;
+}
+.call-btn-active:hover {
+  background: #059669 !important;
+  transform: translateY(-1px);
+}
+
+.call-btn-locked {
+  background: #F1F5F9 !important;
+  border: 1px solid #CBD5E1 !important;
+  color: #64748B !important;
+}
+.call-btn-locked:hover {
+  background: #E2E8F0 !important;
+  color: #334155 !important;
+}
+

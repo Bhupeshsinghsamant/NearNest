@@ -1,62 +1,115 @@
-# Local Connect: hyperlocal community app (UI demo)
+# NearNest (LocalConnect) — Hyperlocal Community Marketplace
 
-React (Vite) front end + Node/Express API with in-memory sample data.
+[![CI Quality Gates](https://github.com/Bhupeshsinghsamant/NearNest/actions/workflows/ci.yml/badge.svg)](https://github.com/Bhupeshsinghsamant/NearNest/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node Version](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
+[![Database](https://img.shields.io/badge/Database-MongoDB%20Atlas-emerald.svg)](https://www.mongodb.com/atlas)
 
-## Run
+NearNest is an open-source, full-stack hyperlocal marketplace application designed to connect campus students, young working professionals, and local residents with verified rooms, rentals, civil services, and community alerts within walking distance.
+
+---
+
+## 🌟 Key Architecture & Capabilities
+
+### 1. Web Application (`client/`)
+- **Framework**: React 18 SPA bundled with Vite 5.
+- **Interactive Mapping**: Real Leaflet + OpenStreetMap integration with interactive radar pins and geographic boundaries.
+- **Direct Messaging Hub**: Instagram-style direct chat with real-time polling, instant read status (`✓ Sent` and `✓✓ Seen`), and automated unread badge zeroing.
+- **Verified Caller Flow**: One-touch voice calling (`tel:...`) and direct WhatsApp messaging unlocked exclusively after request acceptance.
+- **Master Admin Portal**: Specialized operations console for platform owners with user moderation (ban/unban/delete), listing verification badges (`🛡️ Verified by Admin`), and system health telemetry.
+
+### 2. Backend API (`server/`)
+- **Runtime**: Node.js + Express 4.
+- **Database Engine**: MongoDB Atlas via Mongoose 9 with GeoJSON `2dsphere` spherical indexing.
+- **Authentication**: JWT token authorization with slow bcrypt password hashing (10 salt rounds).
+- **Protection**: In-memory sliding-window rate limiting on auth and media upload routes; production fail-closed configuration; fail-safe seed protection (`ALLOW_DESTRUCTIVE_SEED`).
+- **Media Engine**: Multer multipart upload engine with MIME-type validation for photos (max 10MB) and video tours (max 50MB).
+
+### 3. Mobile Application (`mobile/`)
+- **Framework**: React Native 0.86 + Expo 57 with TypeScript.
+- **Navigation**: Expo Router file-based navigation.
+- **Security**: Hardware-backed token persistence using `expo-secure-store`.
+- **Media Capture**: Mobile camera and gallery picker (`expo-image-picker`) with unified `/api/v1/upload/media` integration.
+
+---
+
+## 🚀 Quick Start (Local Development)
+
+### Prerequisites
+- Node.js 20+ installed
+- MongoDB Atlas cluster URI (or local MongoDB 6+)
+
+### Installation
+```bash
+# Clone the repository
+git clone https://github.com/Bhupeshsinghsamant/NearNest.git
+cd NearNest
+
+# Install all dependencies (root, server, client, mobile)
+npm run install:all
+```
+
+### Environment Setup
+Create `server/.env` based on `server/.env.example`:
+```env
+PORT=5000
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/NearNest?retryWrites=true&w=majority
+JWT_SECRET=your_secure_development_jwt_secret_min_32_characters
+NODE_ENV=development
+```
+
+### Starting Servers
+
+#### 1. Backend API (Port 5000)
+```powershell
+cd server
+npm run dev
+```
+
+#### 2. Web Frontend with Local Network Host (Port 5173)
+```powershell
+cd client
+npm run dev -- --host
+```
+*Access on laptop: `http://localhost:5173`*  
+*Access on mobile browser (same Wi-Fi): `http://<your-laptop-ip>:5173`*
+
+#### 3. Mobile Application (Expo)
+```powershell
+cd mobile
+npm run start
+```
+
+---
+
+## 🧪 Testing & Quality Gates
+
+NearNest uses an isolated in-memory test runner (`mongodb-memory-server`) to guarantee that automated tests **NEVER mutate or delete production Atlas data**:
 
 ```bash
-npm run install:all      # installs root, server and client dependencies
-npm run dev              # API on :5000, web app on :5173
+# Run backend automated test suite (19/19 tests)
+npm test --prefix server
+
+# Verify web client production build
+npm run build --prefix client
 ```
 
-Open http://localhost:5173
+---
 
-If you only want the UI, `cd client && npm install && npm run dev` also works:
-without the API running, the app falls back to the bundled sample data (`client/src/data.json`).
+## 📚 Project Documentation
 
-## Login and signup
+Comprehensive architectural and engineering documentation is maintained in the `docs/` directory:
+- [Project Audit & Baseline](docs/PROJECT_AUDIT.md)
+- [Product Requirements Document (PRD)](docs/REQUIREMENTS.md)
+- [Master Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+- [QA & Test Plan](docs/TEST_PLAN.md)
+- [Zero-Budget Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Known Limitations & Architecture Boundaries](docs/KNOWN_LIMITATIONS.md)
 
-- Sign up with name, email, area and password, or log in. Everyone who signs up is a normal **user**.
-- Demo accounts (buttons on the login page):
-  - User: `demo@localconnect.in` / `demo123`
-  - Admin: `admin@localconnect.in` / `admin123`
-- The **Safety desk** is admin-only: hidden from the menu for users, redirected if opened directly, and the
-  API returns 403 for non-admins (GET /api/flags and PATCH /api/flags/:id). In offline demo mode the
-  restriction is enforced in the UI only.
-- With the API running: passwords are hashed with scrypt and the server issues a signed token
-  (valid 7 days). Posting listings, alerts and safety-desk actions requires a valid token.
-- Without the API: accounts are stored in the browser only (demo mode), so the UI still works.
-- Set `JWT_SECRET` in the server environment before deploying anywhere real.
+---
 
-## Features
+## 🔒 Security & Data Safety Principles
 
-| Page | What it shows |
-| --- | --- |
-| Nearby | Radar map of everything around you, urgent alert banner, counts per section |
-| Rooms | Listings, "request to contact", owner inbox with accept / decline, list a room |
-| Lost & found | Found / lost tabs, claim with proof, post and notify nearby users |
-| Rentals | Scooty / bike / car, hours + live-location sharing option with surcharge |
-| Services | Electrician, mechanic, plumber, notes. Search and filters |
-| Alerts | Urgent broadcast to a radius, "I can help" responses |
-| Safety desk (admin only) | Anti-fraud: flagged accounts / regions with risk score, restrict or clear |
-
-The radius slider in the sidebar filters every page and the map.
-
-## API
-
-```
-POST  /api/auth/signup        { name, email, password, area } -> { user, token }
-POST  /api/auth/login         { email, password }             -> { user, token }
-GET   /api/auth/me            current user (Bearer token)
-GET   /api/:resource          rooms | lostfound | rentals | services | alerts
-GET   /api/flags              flagged accounts/areas (admin only)
-POST  /api/:resource          add an item (login required, in memory)
-PATCH /api/flags/:id          { "status": "restricted" | "cleared" } (admin only)
-```
-
-## Where to go next (for the real build)
-
-- MongoDB or PostgreSQL instead of the in-memory users and data; email verification and password reset
-- Real map: Leaflet + OpenStreetMap, replace `components/MapView.jsx`
-- Push notifications / WebSockets for alerts and request updates
-- Fraud rules: posts per hour per account, duplicate images, new-account bursts per area
+1. **Zero Secret Leakage**: Database credentials, passwords, and private tokens are never printed or committed.
+2. **Safe Seeding**: Database seed scripts require explicit opt-in (`ALLOW_DESTRUCTIVE_SEED=true`) and strictly fail closed in production.
+3. **Impartial Platform Governance**: Master Admin accounts are isolated from marketplace consumer transactions to ensure unbiased community moderation.
