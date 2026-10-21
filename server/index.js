@@ -405,8 +405,8 @@ app.delete("/api/:resource/:id", requireAuth, deleteListing);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-export const server = app.listen(PORT, () => {
-  console.log(`🚀 NearNest API Server listening on port ${PORT}`);
+export const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 NearNest API Server listening on port ${PORT} (0.0.0.0)`);
 });
 
 export default app;
